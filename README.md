@@ -18,3 +18,16 @@ Each plugin must fulfill the following requirements:
 Please contact us if you have a doubt about how or what to contribute.
 
 Unless otherwise mentioned in the directory of a specific plugin, all the plugins in this repository are released under the terms of the MIT License. The source code is provided as is, with no guarantee of correctness, performance, or future maintenance and compatibility.
+
+## Table of content
+
+- [PageRank Command](#pagerank-command)
+- [Geo Search](#geo-search)
+
+### [PageRank Command](https://github.com/sinequa/plugins/tree/master/PageRank)
+
+PageRank is an algorithm that aims to compute the importance of documents relative to each other within a corpus, independently from any user query. This plugin packages an open-source implementation of PageRank and allows to apply the algorithm on a Sinequa index, in order to improve the relevance of search results.
+
+### [Geo Search](https://github.com/sinequa/plugins/tree/master/GeoSearch)
+
+Sinequa can search within geolocated data by setting up an engine plugin, enabling powerful functionalities, like computing the intersection of complex geographical primitives. This plugin provides a set of Function plugins to generate geographical primitives *at indexing time* and a sample Query plugin that allows searching geolocated documents or records *at query time*.

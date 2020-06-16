@@ -1,0 +1,48 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sinequa>   
+    <Inherit>command</Inherit>
+    <Tab merge-type="merge" merge-id="plugin">
+        <Display>{Lang("PageRank Settings")}</Display>
+        <Group merge-type="add" id="general">
+            <Display>{Lang("Index and References")}</Display>
+
+            <Entry>
+                <Display>{Lang("Index[fr]Index")}</Display>
+                <DataTag>index</DataTag>
+            </Entry>            
+            <Entry>
+                <Display>{Lang("Collection[fr]Collection")}</Display>
+                <DataTag>collection</DataTag>
+            </Entry>
+            <Entry>
+                <Display>{Lang("ID column[fr]Colonne ID")}</Display>
+                <DataTag>column_id</DataTag>
+            </Entry>
+            <Entry>
+                <Display>{Lang("References column[fr]Colonne Références")}</Display>
+                <DataTag>column_links</DataTag>
+            </Entry>
+            <Entry>
+                <Display>{Lang("Score column[fr]Colonne Score")}</Display>
+                <DataTag>column_score</DataTag>
+            </Entry>
+        </Group>
+
+        <Group merge-type="add" id="general">
+            <Display>{Lang("PageRank parameters")}</Display>
+
+            <Entry>
+                <Display>{Lang("Alpha (default: 0.85)[fr]Alpha (défaut: 0.85)")}</Display>
+                <DataTag>alpha</DataTag>
+            </Entry>
+            <Entry>
+                <Display>{Lang("Tolerance x ndoc (default: 0.0001)[fr]Tolérance x ndoc (défaut: 0.0001)")}</Display>
+                <DataTag>tolerance</DataTag>
+            </Entry>
+            <Entry>
+                <Display>{Lang("Check Steps (default: 10)[fr]Check Steps (défaut: 10)")}</Display>
+                <DataTag>checkSteps</DataTag>
+            </Entry>
+        </Group>
+    </Tab>
+</Sinequa>

@@ -1,0 +1,10 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sinequa>
+	<Description></Description>
+	<ProgrammingLanguage>cs</ProgrammingLanguage>
+	<Platform>any</Platform>
+	<IsDebug>false</IsDebug>
+	<ExternalDllPath></ExternalDllPath>
+	<UseLegacyCompiler>false</UseLegacyCompiler>
+	<File>PageRank.cs</File>
+</Sinequa>
