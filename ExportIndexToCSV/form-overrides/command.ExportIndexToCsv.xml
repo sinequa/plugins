@@ -1,0 +1,172 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sinequa>
+	<Inherit>command</Inherit>
+	<Tab merge-type="merge" merge-id="general">
+		<Group merge-type="add" id="sql_settings">
+			<Display>Lang("SQL Query configuration")</Display>
+			<Entry>
+				<Display>{Lang("Select, default *")}</Display>
+				<DataTag>CMD_SELECT</DataTag>
+				<Icon><ToolTip>{Lang("You can use column or column aliases, distributions and corelations are not supported")}</ToolTip></Icon>
+			</Entry>
+			<MultiEntity>
+				<Display>{Lang("Indexes List")}</Display>
+				<DataTag>CMD_INDEX_LIST</DataTag>
+				<ListName>listindex2</ListName>
+				<Form>index</Form>
+				<DataType>index</DataType>
+			</MultiEntity>
+			<Entry>
+				<Display>{Lang("Where clause")}</Display>
+				<DataTag>CMD_WHERE</DataTag>
+				<Icon><ToolTip>{Lang("This parameter is optional. "where" keywork will be automatically added. This field support value pattern expression")}</ToolTip></Icon>
+			</Entry>
+			<Entry>
+				<Display>{Lang("Group by")}</Display>
+				<DataTag>CMD_GROUPBY</DataTag>
+				<Icon><ToolTip>{Lang("This parameter is optional. "group by" keywork will be automatically added")}</ToolTip></Icon>
+			</Entry>
+			<Entry>
+				<Display>{Lang("Order by")}</Display>
+				<DataTag>CMD_ORDERBY</DataTag>
+				<Icon><ToolTip>{Lang("This parameter is optional. "order by" keywork will be automatically added")}</ToolTip></Icon>
+			</Entry>
+			<Entry>
+				<Display>{Lang("Count")}</Display>
+				<DataTag>CMD_COUNT</DataTag>
+				<Icon><ToolTip>{Lang("This parameter is optional. If empty, export all")}</ToolTip></Icon>
+			</Entry>
+			<Plugin>
+				<Plugin>ExportIndexToCSV_SQL</Plugin>
+			</Plugin>
+		</Group>
+		<Group merge-type="add" id="engine_settings">
+			<Display>Lang("Engine configuration")</Display>
+			<MultiEntity>
+				<Display>{Lang("Engine")}</Display>
+				<DataTag>CMD_ENGINE</DataTag>
+				<ListName>listengine</ListName>
+				<Form>engine</Form>
+				<DataType>engine</DataType>
+				<Icon><ToolTip>{Lang("This parameter is optionnal. If an Engine is selected, the SQL query will be executed on the selected Engine.")}</ToolTip></Icon>
+			</MultiEntity>
+		</Group>
+		<Group merge-type="add" id="csv_settings">
+			<Display>Lang("CSV Export settings")</Display>
+			<CheckBox>
+				<Display>{Lang("Add headers")}</Display>
+				<DataTag>CMD_HEADERS</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("First line will include headers (column name)")}</ToolTip></Icon>
+			</CheckBox>
+			<CheckBox>
+				<Display>{Lang("Override Headers")}</Display>
+				<DataTag>CMD_HEADERS_OVERRIDE</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("If checked, headers will be replaced by 'custom headers' field")}</ToolTip></Icon>
+			</CheckBox>
+			<Entry>
+				<Display>{Lang("Cutom headers")}</Display>
+				<DataTag>CMD_HEADERS_CUSTOM</DataTag>
+				<Icon><ToolTip>{Lang("Used only if 'override headers' is checked. Must contains the same number of elements than columns in the select statement and use the same separator as defined in 'separator'.")}</ToolTip></Icon>
+			</Entry>
+			<Entry>
+				<Display>{Lang("Field separator (char)")}</Display>
+				<DataTag>CMD_SEPARATOR</DataTag>
+				<Icon><ToolTip>{Lang("Default: ,")}</ToolTip></Icon>
+			</Entry>
+			<CheckBox>
+				<Display>{Lang("Enable replace separator in values")}</Display>
+				<DataTag>CMD_USE_REPLACE</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("If enabled, replace the "Field separator" char using the "Replace separator" char")}</ToolTip></Icon>
+			</CheckBox>
+			<Entry>
+				<Display>{Lang("Replace separator in values (char)")}</Display>
+				<DataTag>CMD_SEPARATOR_REPLACE</DataTag>
+				<Icon><ToolTip>{Lang("Replace the separator with this charcarter in values. You may consider the 'Enclose fields in double quotes' option. Default: /")}</ToolTip></Icon>
+			</Entry>
+			<CheckBox>
+				<Display>{Lang("Enclose fields in double quote")}</Display>
+				<DataTag>CMD_DBL_QUOTES</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Allow escaping reserved characters (such as commas, double quotes)")}</ToolTip></Icon>
+			</CheckBox>
+			<Entry>
+				<Display>{Lang("Destination file path")}</Display>
+				<DataTag>CMD_FILE_PATH</DataTag>
+				<Icon><ToolTip>{Lang("If not exist, file will be created. If exist, file content will be replaced. This field support value pattern expression")}</ToolTip></Icon>
+			</Entry>
+			<CheckBox>
+				<Display>{Lang("Remove duplicate lines")}</Display>
+				<DataTag>CMD_DEDUPLICATE</DataTag>
+				<Icon><ToolTip>{Lang("For performances considerations, it's highly recommended to deduplicate content at query time using group by. This option will compute a hash key concatenating all fields of a row. Rows with the same hash key will be exported only once")}</ToolTip></Icon>
+				<DefaultValue>false</DefaultValue>
+			</CheckBox>
+			<CheckBox>
+				<Display>{Lang("Remove empty lines")}</Display>
+				<DataTag>CMD_REMOVE_EMPTY_LINES</DataTag>
+				<Icon><ToolTip>{Lang("Do not export rows where all the fields are empty")}</ToolTip></Icon>
+				<DefaultValue>false</DefaultValue>
+			</CheckBox>
+		</Group>
+		<Group merge-type="add" id="simulate_settings">
+			<Display>Lang("Simulate Mode")</Display>
+			<CheckBox>
+				<Display>{Lang("Enable simulate mode")}</Display>
+				<DataTag>CMD_SIMULATE</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("In simulate mode, destination file is not created, result of the export can be found in the log file")}</ToolTip></Icon>
+			</CheckBox>
+			<Entry>
+				<Display>{Lang("Number of lines to log in simulation mode")}</Display>
+				<DataTag>CMD_NB_LINE_SIMULATE</DataTag>
+				<Icon><ToolTip>{Lang("Default is 1000")}</ToolTip></Icon>
+			</Entry>
+		</Group>
+		<Group merge-type="add" id="test">
+			<Display>Lang("Column Mapping")</Display>
+			<Icon><ToolTip>{Lang("Column Mapping allow you to change the value of a column using a value pattern expression when the selection query match. Please note: 'Replace separator in values', 'Enclose fields in double quote', 'Remove duplicate lines' and 'Remove empty lines' options are all evaluated after the column mapping.")}</ToolTip></Icon>
+			<Grid id="values">
+				<DataTag>CMD_MAPPING</DataTag>
+				<Col>
+					<ImageTitle>{Lang("Swap")}</ImageTitle>
+					<Width>12</Width>
+					<CellType>swap</CellType>
+				</Col>
+				<Col>
+					<Title>{Lang("Column")}</Title>
+					<DataTag>Column</DataTag>
+					<Width>30%</Width>
+					<CellType>input</CellType>
+					<Icon><ToolTip>{Lang("Column name as declared in SQL 'select' field")}</ToolTip></Icon>
+				</Col>
+				<Col>
+					<Title>{Lang("Value pattern")}</Title>
+					<DataTag>Value</DataTag>
+					<Width>40%</Width>
+					<CellType>input</CellType>
+					<Icon><CssClass>help</CssClass><Url>{Lang("doc/en/Default.htm#en.sinequa-es.syntax.value-patterns.html")}</Url><Target>admin-help</Target><Title>{Lang("Help[fr]Aide")}</Title></Icon>
+				</Col>
+				<Col>
+					<Title>{Lang("Selection query")}</Title>
+					<DataTag>SelectionQuery</DataTag>
+					<Width>30%</Width>
+					<CellType>input</CellType>
+					<Icon><CssClass>help</CssClass><Url>{Lang("doc/en/Default.htm#en.sinequa-es.syntax.selection-query.html")}</Url><Target>admin-help</Target><Title>{Lang("Help[fr]Aide")}</Title></Icon>
+				</Col>
+				<Col>
+					<ImageTitle>{Lang("Duplicate")}</ImageTitle>
+					<Width>16</Width>
+					<CellType>duplicate</CellType>
+				</Col>
+				<Col>
+					<ShowPlus>true</ShowPlus>
+					<Width>48</Width>
+					<CellType>rowdelete</CellType>
+					<CellValue>rowdelete</CellValue>
+				</Col>
+			</Grid>
+		</Group>
+	</Tab>
+</Sinequa>
