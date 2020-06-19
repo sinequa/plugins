@@ -23,6 +23,8 @@ Unless otherwise mentioned in the directory of a specific plugin, all the plugin
 
 - [PageRank Command](#pagerank-command)
 - [Geo Search](#geo-search)
+- [Engine Benchmark](#engine-benchmark)
+- [Export Index to CSV](#export-index-to-csv)
 
 ### [PageRank Command](https://github.com/sinequa/plugins/tree/master/PageRank)
 
@@ -31,3 +33,11 @@ PageRank is an algorithm that aims to compute the importance of documents relati
 ### [Geo Search](https://github.com/sinequa/plugins/tree/master/GeoSearch)
 
 Sinequa can search within geolocated data by setting up an engine plugin, enabling powerful functionalities, like computing the intersection of complex geographical primitives. This plugin provides a set of Function plugins to generate geographical primitives *at indexing time* and a sample Query plugin that allows searching geolocated documents or records *at query time*.
+
+### [Engine Benchmark](https://github.com/sinequa/plugins/tree/master/EngineBenchmark)
+
+EngineBenchmak command aims to measure engine(s) performances at query time. Using this command, you can run repeatable and quantifiable scenarios to analyze what are the performances of the engine(s) through a set of metrics.
+
+### [Export Index to CSV](https://github.com/sinequa/plugins/tree/master/ExportIndexToCSV)
+
+ExportIndexToCSV is a command that aims to simplify data export from your indexes. Unlike the ExecSqlCsv scmd command ExportIndexToCSV offer you additional settings to better control how data get exported.
