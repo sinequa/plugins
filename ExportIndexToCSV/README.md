@@ -59,8 +59,8 @@ Column Mapping allow you to change the value of a column using a value pattern e
 Field | Type | Default value | Required | Comment
 --- | --- | --- | --- | --- 
 Column | string | | yes | Column name as defined in select field. Support column alias.
-Value Pattern | string | | yes | Value Pattern expression as decribed in https://doc-internal.sinequa.com/en.sinequa-es.v11/Content/en.sinequa-es.syntax.value-patterns.html
-Selection Query | String | | no | Selection Query as described in https://doc-internal.sinequa.com/en.sinequa-es.v11/Content/en.sinequa-es.syntax.selection-query.html
+Value Pattern | string | | yes | Value Pattern expression as decribed in https://doc.sinequa.com/en.sinequa-es.v11/Content/en.sinequa-es.syntax.value-patterns.html
+Selection Query | String | | no | Selection Query as described in https://doc.sinequa.com/en.sinequa-es.v11/Content/en.sinequa-es.syntax.selection-query.html
 
 The SQL query will be displayed once you have fielded the "SQL" parameters and save the form (using a WebFormControlPlugin in the ExportIndexToCsv.cs file)
 
