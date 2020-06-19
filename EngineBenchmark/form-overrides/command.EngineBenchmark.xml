@@ -1,0 +1,243 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sinequa>
+	<Inherit>command</Inherit>
+	<Tab merge-type="merge" merge-id="general">
+		<Group merge-type="add" id="engines_settings">
+			<Display>Lang("Engines configuration")</Display>
+			<MultiEntity>
+				<Display>{Lang("Engines")}</Display>
+				<Form>engine</Form>
+				<DataType>engine</DataType>
+				<DataTag>CMD_ENGINE_LIST</DataTag>
+				<ListName>listengine2</ListName>
+				<Icon><ToolTip>{Lang("An Engine or a list of Engines, used to get the Engine Client to perform queries in the thread groups")}</ToolTip></Icon>
+			</MultiEntity>
+			<Combo>
+				<Display>{Lang("Engines strategy")}</Display>
+				<DataTag>CMD_ENGINE_STRATEGY</DataTag>
+				<ListName>enginestartegy</ListName>
+				<Icon><ToolTip>{Lang("First available: first available Engine from the list (ping ok). Random: load balance the queries between the Engines from the list")}</ToolTip></Icon>
+			</Combo>
+		</Group>
+		<Group merge-type="add" id="sql_settings">
+			<Display>Lang("Thread groups configuration")</Display>
+			<CheckBox>
+				<Display>{Lang("Execute thread groups in parallel")}</Display>
+				<DataTag>CMD_THREAD_GROUP_PARALLEL</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Thread groups will be executed in parallel.")}</ToolTip></Icon>
+			</CheckBox>
+			<Grid>
+				<DataTag>CMD_THREAD_GROUP_GRID</DataTag>
+				<Col>
+					<ImageTitle>{Lang("Swap")}</ImageTitle>
+					<Width>12</Width>
+					<CellType>swap</CellType>
+				</Col>
+				<Col>
+					<Title>{Lang("Name")}</Title>
+					<DataTag>CMD_THREAD_GROUP_GRID_NAME</DataTag>
+					<CellType>input</CellType>
+					<Icon><ToolTip>{Lang("Thread group name, used in logs and output file")}</ToolTip></Icon>
+				</Col>
+				<Col>
+					<Title>{Lang("SQL Query")}</Title>
+					<DataTag>CMD_THREAD_GROUP_GRID_SQL</DataTag>
+					<CellType>Memo</CellType>
+					<Width>30%</Width>
+					<Icon><ToolTip>{Lang("Support only select statment. You can use variables in this field with the following syntax $myvar$ where myvar is the variable name. These variables will be replaced by values from the "parameter file".")}</ToolTip></Icon>
+				</Col>
+				<Col>
+					<Title>{Lang("Parameter file")}</Title>
+					<DataTag>CMD_THREAD_GROUP_GRID_PARAM_CUSTON_FILE</DataTag>
+					<CellType>combo</CellType>
+					<CellListName>listcustomfile</CellListName>
+					<Icon><ToolTip>{Lang("Custom file containing the variable name in the header (first line). Each subsequent line will represent a set of values. NOTE: The variables names must not include $ signs and lines must have the same number of values as defined in the header")}</ToolTip></Icon>
+				</Col>
+				<Col>
+					<Title>{Lang("Separator")}</Title>
+					<DataTag>CMD_THREAD_GROUP_GRID_PARAM_CUSTON_FILE_SEP</DataTag>
+					<CellType>input</CellType>
+					<Icon><ToolTip>{Lang("Separator used in "Parameter file". Type: char. Default: ;")}</ToolTip></Icon>
+				</Col>
+				<Col>
+					<Title>{Lang("Parameter strategy")}</Title>
+					<DataTag>CMD_THREAD_GROUP_GRID_PARAM_STRATEGY</DataTag>
+					<CellType>combo</CellType>
+					<CellListName>listparamstrategy</CellListName>
+					<Icon><ToolTip>{Lang("Strategy to read values from "Parameter file". Values are pulled by line, the strategy define what line values is used to replace the variables in the SQL. Ordered: threads will read lines from top to bottom. Random: read in random order")}</ToolTip></Icon>
+				</Col>
+				<Col>
+					<Title>{Lang("User ACLs")}</Title>
+					<DataTag>CMD_THREAD_GROUP_GRID_USERS_ACL</DataTag>
+					<CellType>Checkbox</CellType>
+					<DefaultValue>false</DefaultValue>
+					<Icon><ToolTip>{Lang("If checked, add user ACLs in the SQL query. Using the same strategy as defined for "Parameter strategy" (Ordered or Random)")}</ToolTip></Icon>
+				</Col>
+				<Col>
+					<Title>{Lang("Threads")}</Title>
+					<DataTag>CMD_THREAD_GROUP_GRID_THREADS_NUMBER</DataTag>
+					<CellType>input</CellType>
+					<Icon><ToolTip>{Lang("Number of parallel threads, each thread will execute a SQL query. Default: 5")}</ToolTip></Icon>
+				</Col>
+				<Col>
+					<Title>{Lang("Thread sleep (min;max)")}</Title>
+					<DataTag>CMD_THREAD_GROUP_GRID_THREADS_SLEEP</DataTag>
+					<CellType>input</CellType>
+					<Icon><ToolTip>{Lang("Define min and max boundaries in seconds before a thread execute SQL query. Values are in seconds. Syntax: min;max. Default: 3;10 ")}</ToolTip></Icon>
+				</Col>
+				<Col>
+					<Title>{Lang("Execution time")}</Title>
+					<DataTag>CMD_THREAD_GROUP_GRID_MAX_TIME</DataTag>
+					<CellType>input</CellType>
+					<Icon><ToolTip>{Lang("Maximum execution time in seconds. Once execution time is reached, stop all threads execution. Default: 60")}</ToolTip></Icon>
+				</Col>
+				<Col>
+					<Title>{Lang("Max iterations")}</Title>
+					<DataTag>CMD_THREAD_GROUP_GRID_MAX_ITERATION</DataTag>
+					<CellType>input</CellType>
+					<Icon><ToolTip>{Lang("Maximun number of iterration (SQL queries executed). Once max iterations is reached, stop all threads execution. Default: 100")}</ToolTip></Icon>
+				</Col>
+				<Col>
+					<ImageTitle>{Lang("Duplicate[fr]Dupliquer")}</ImageTitle>
+					<Width>16</Width>
+					<CellType>duplicate</CellType>
+				</Col>
+				<Col>
+					<ShowPlus>true</ShowPlus>
+					<Width>48</Width>
+					<CellType>rowdelete</CellType>
+					<CellValue>rowdelete</CellValue>
+				</Col>
+			</Grid>
+		</Group>
+		<Group merge-type="add" id="users_acl_settings">
+			<Display>Lang("Users ACLs")</Display>
+			<Combo>
+				<Display>{Lang("Security syntax")}</Display>
+				<DataTag>CMD_SECURITY_SYNTAX</DataTag>
+				<ListName>listsecuritysyntax</ListName>
+				<Icon><ToolTip>{Lang("Legacy: Full security clause (identities and groups) are sent as part of the SQL query. Engine: only user identity is sent as part of the SQL query. Please note, Engine security requires version >= 11.3.0 ")}</ToolTip></Icon>
+				<DefaultValue>Engine</DefaultValue>
+			</Combo>
+			<Combo>
+				<Display>{Lang("Security Domain")}</Display>
+				<DataTag>CMD_USERS_DOMAIN</DataTag>
+				<ListName>listdomain</ListName>
+				<Icon><ToolTip>{Lang("Security domain used to get users id or user name")}</ToolTip></Icon>
+			</Combo>
+			<Grid>
+				<DataTag>CMD_USERS_GRID</DataTag>
+				<Col>
+					<ImageTitle>{Lang("Swap[fr]Echanger")}</ImageTitle>
+					<Width>12</Width>
+					<CellType>swap</CellType>
+				</Col>
+				<Col>
+					<Title>{Lang("User ID / Name")}</Title>
+					<DataTag>CMD_USERS_GRID_USER_ID</DataTag>
+					<CellType>input</CellType>
+					<Icon><ToolTip>{Lang("You can use both a user ID or a user name")}</ToolTip></Icon>
+				</Col>
+				<Col>
+					<Title>{Lang("Comment")}</Title>
+					<DataTag>CMD_USERS_GRID_USER_COMMENT</DataTag>
+					<CellType>input</CellType>
+				</Col>
+				<Col>
+					<ImageTitle>{Lang("Duplicate[fr]Dupliquer")}</ImageTitle>
+					<Width>16</Width>
+					<CellType>duplicate</CellType>
+				</Col>
+				<Col>
+					<ShowPlus>true</ShowPlus>
+					<Width>48</Width>
+					<CellType>rowdelete</CellType>
+					<CellValue>rowdelete</CellValue>
+				</Col>
+			</Grid>
+		</Group>
+		<Group merge-type="add" id="threads_settings">
+			<Display>Lang("Output")</Display>
+			<Entry>
+				<Display>{Lang("Output folder")}</Display>
+				<DataTag>CMD_OUTPUT_FOLDER_PATH</DataTag>
+				<Icon><ToolTip>{Lang("Folder to store output file. The output file will contains [thread group name][iteration][success][engine name] and any other information based on what you selected below. File name will be commandName_time.csv")}</ToolTip></Icon>
+			</Entry>
+			<Entry>
+				<Display>{Lang("CSV Separator")}</Display>
+				<DataTag>CMD_OUTPUT_CSV_SEPARATOR</DataTag>
+				<Icon><ToolTip>{Lang("Seperator used within the output CSV file. Type: char. Default: \t")}</ToolTip></Icon>
+			</Entry>
+			<CheckBox>
+				<Display>{Lang("SQL Query")}</Display>
+				<DataTag>CMD_OUTPUT_SQL_QUERY</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Add the following infomation in the output file: [sql]. Default: false. NOTE: This can make the output file very big especially if you have a long query or lot of ACLs for users")}</ToolTip></Icon>
+			</CheckBox>
+			<CheckBox>
+				<Display>{Lang("Query timers")}</Display>
+				<DataTag>CMD_OUTPUT_QUERY_TIMERS</DataTag>
+				<DefaultValue>true</DefaultValue>
+				<Icon><ToolTip>{Lang("Add the following infomation in the output file: [totalQueryTime][processingTime][rowfetchtime][readCursor]. Default: true")}</ToolTip></Icon>
+			</CheckBox>
+			<CheckBox>
+				<Display>{Lang("Query Info")}</Display>
+				<DataTag>CMD_OUTPUT_QUERY_INFO</DataTag>
+				<DefaultValue>true</DefaultValue>
+				<Icon><ToolTip>{Lang("Add the following infomation in the output file: [cachehit][matchingrowcount]. Default: true")}</ToolTip></Icon>
+			</CheckBox>
+			<CheckBox>
+				<Display>{Lang("Client timers")}</Display>
+				<DataTag>CMD_OUTPUT_CLIENT_TIMERS</DataTag>
+				<DefaultValue>true</DefaultValue>
+				<Icon><ToolTip>{Lang("Add the following infomation in the output file: [clientFromPool][clientToPool]. Default: true")}</ToolTip></Icon>
+			</CheckBox>
+			<CheckBox>
+				<Display>{Lang("Network timers")}</Display>
+				<DataTag>CMD_OUTPUT_NETWORK_TIMERS</DataTag>
+				<DefaultValue>true</DefaultValue>
+				<Icon><ToolTip>{Lang("Add the following infomation in the output file: [queryNetwork]. Default: true")}</ToolTip></Icon>
+			</CheckBox>
+			<CheckBox>
+				<Display>{Lang("Parameters")}</Display>
+				<DataTag>CMD_OUTPUT_PARAMETERS</DataTag>
+				<DefaultValue>true</DefaultValue>
+				<Icon><ToolTip>{Lang("Add values from parameter file used to replace variables in the SQL query. If your thread group use User ACLs", the user full name will be displayed. Default: true")}</ToolTip></Icon>
+			</CheckBox>
+			<CheckBox>
+				<Display>{Lang("Internal Query Log - Search RWA")}</Display>
+				<DataTag>CMD_OUTPUT_INTERNALQUERYLOG_SEARCH_RWA</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Add [Search RWA] duration per index. Default: false")}</ToolTip></Icon>
+			</CheckBox>
+			<CheckBox>
+				<Display>{Lang("Internal Query Log - DB Query")}</Display>
+				<DataTag>CMD_OUTPUT_INTERNALQUERYLOG_DB_QUERY</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Add [Execute DBQuery] and [Fetching DBQuery] durations per index. Default: false")}</ToolTip></Icon>
+			</CheckBox>
+			<CheckBox>
+				<Display>{Lang("Internal Query Log - Query Processor Parse")}</Display>
+				<DataTag>CMD_OUTPUT_INTERNALQUERYLOG_QUERY_PROCESSOR_PARSE</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("[SQL Parsing] duration of the SQL query. Default: false")}</ToolTip></Icon>
+			</CheckBox>
+		</Group>
+	</Tab>
+	<List merge-type="add" id="enginestartegy">
+		<Name>enginestartegy</Name>
+		<Item><Name>First available</Name><Value>First_available</Value></Item>
+		<Item><Name>Random</Name><Value>Random</Value></Item>
+	</List>
+	<List merge-type="add" id="listparamstrategy">
+		<Name>listparamstrategy</Name>
+		<Item><Name>Ordered</Name><Value>Ordered</Value></Item>
+		<Item><Name>Random</Name><Value>Random</Value></Item>
+	</List>
+	<List merge-type="add" id="listsecuritysyntax">
+		<Name>listsecuritysyntax</Name>
+		<Item><Name>Legacy</Name><Value>Legacy</Value></Item>
+		<Item><Name>Engine</Name><Value>Engine</Value></Item>
+	</List>
+</Sinequa>
