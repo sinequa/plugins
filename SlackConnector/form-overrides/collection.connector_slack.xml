@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sinequa>
+	<Inherit>collection</Inherit>
+	<Tab merge-type="merge" merge-id="general">
+		<Group merge-type="insertbefore" merge-id="included">	
+			<Entry><Display>{Lang("Slack URL (e.g: https://mycompany.slack.com)[fr]URL Slack (e.g: https://mycompany.slack.com)")}</Display><DataTag>Slack/URL</DataTag></Entry>
+			<Entry><Display>{Lang("Slack OAuth Access Token (https://api.slack.com/authentication/basics#creating) [fr]OAuth Access Token Slack (https://api.slack.com/authentication/basics#creating)")}</Display><DataTag>Slack/Token</DataTag></Entry>
+			<MultiEntry><Display>{Lang("Included Channel[fr]Channel à inclure")}</Display><DataTag>Slack/ChannelIncluded</DataTag></MultiEntry>
+			<MultiEntry><Display>{Lang("Excluded Channel[fr]Channel à exclure")}</Display><DataTag>Slack/ChannelExcluded</DataTag></MultiEntry>			
+			<Checkbox><Display>{Lang("Index Messages[fr]Indexer les messages")}</Display><DataTag>Slack/IndexMessages</DataTag><DefaultValue>true</DefaultValue></Checkbox>
+			<Checkbox><Display>{Lang("Index Files[fr]Indexer les fichiers")}</Display><DataTag>Slack/IndexFiles</DataTag><DefaultValue>true</DefaultValue></Checkbox>
+		</Group>
+	</Tab>
+</Sinequa>

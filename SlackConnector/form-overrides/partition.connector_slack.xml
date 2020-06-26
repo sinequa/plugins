@@ -1,0 +1,10 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sinequa>
+	<Inherit>partition</Inherit>
+	<Tab merge-type="merge" merge-id="general">
+		<Group merge-type="add" merge-id="general" id="slacks">
+			<Entry><Display>{Lang("Slack URL (e.g: https://mycompany.slack.com)[fr]URL Slack (e.g: https://mycompany.slack.com)")}</Display><DataTag>Slack/URL</DataTag></Entry>
+			<Entry><Display>{Lang("Slack OAuth Access Token (https://api.slack.com/authentication/basics#creating) [fr]OAuth Access Token Slack (https://api.slack.com/authentication/basics#creating)")}</Display><DataTag>Slack/Token</DataTag></Entry>
+		</Group>
+	</Tab>
+</Sinequa>
