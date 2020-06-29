@@ -48,6 +48,23 @@ Deploy the form override and the plugin file in your config:
 - Create a partition with the `generic` connector type and the `connector_slack` plug-in.
 ![Partition](doc/partition.png)
 
+## Global Workflow of the ConnectorPlugin
+
+The name of the plugin (used for the collection and the partition) is the class name which implements ConnectorPlugin.
+```
+ public class connector_slack : ConnectorPlugin
+ ...
+```
+
+Workflow:
+| # | Collection Mode | Partition Mode | Description |
+| --- | --- | --- | --- |
+| 1 | `OnLoadConfig` | `OnLoadConfig` | Read the configuration |
+| 2 | `OnConnectorStart` | `OnConnectorStart` | Start execution (global method) |
+| 3 | `OnGenericIndexCollection` | `OnGenericLoadPartition` | Start to retreive documents |
+
+
+
 ## Some Links
 - https://api.slack.com/authentication/basics
 - https://api.slack.com/web
