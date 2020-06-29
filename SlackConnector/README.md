@@ -1,7 +1,9 @@
 
 # SlackConnector
 
-SlackConnector is a plug-in for illustrating how to develop a **generic** connector which consumes a REST API. This plug-in index the **Slack** application.
+SlackConnector is a plug-in for illustrating how to develop a **generic** connector which consumes a REST API.
+
+This plug-in index the **Slack** application.
 
 Plug-in capabilites:
 - Sinequa:
