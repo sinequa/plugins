@@ -25,6 +25,7 @@ Unless otherwise mentioned in the directory of a specific plugin, all the plugin
 - [Geo Search](#geo-search)
 - [Engine Benchmark](#engine-benchmark)
 - [Export Index to CSV](#export-index-to-csv)
+- [Slack Connector](#slack-connector)
 
 ### [PageRank Command](https://github.com/sinequa/plugins/tree/master/PageRank)
 
@@ -41,3 +42,7 @@ EngineBenchmak command aims to measure engine(s) performances at query time. Usi
 ### [Export Index to CSV](https://github.com/sinequa/plugins/tree/master/ExportIndexToCSV)
 
 ExportIndexToCSV is a command that aims to simplify data export from your indexes. Unlike the ExecSqlCsv scmd command ExportIndexToCSV offer you additional settings to better control how data get exported.
+
+### [Slack Connector](https://github.com/sinequa/plugins/tree/master/SlackConnector)
+
+SlackConnector is an implementation of a generic connector with a ConnectorPlugin. This example consumes a REST API for indexing [Slack](https://www.slack.com).
