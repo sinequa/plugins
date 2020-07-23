@@ -162,7 +162,7 @@
 			<Entry>
 				<Display>{Lang("Output folder")}</Display>
 				<DataTag>CMD_OUTPUT_FOLDER_PATH</DataTag>
-				<Icon><ToolTip>{Lang("Folder to store output file. The output file will contains [thread group name][iteration][success][engine name] and any other information based on what you selected below. File name will be commandName_time.csv")}</ToolTip></Icon>
+				<Icon><ToolTip>{Lang("Folder to store output file. The output file will contains [thread group name][iteration][date start][date end][success][engine name] and any other information based on what you selected below. File name will be commandName_time.csv")}</ToolTip></Icon>
 			</Entry>
 			<Entry>
 				<Display>{Lang("CSV Separator")}</Display>

@@ -108,12 +108,14 @@ namespace Sinequa.Plugin
 					Sys.Log2(20, "{" + threadGroupThreadId + "} Thread group [" + tGroup.name + "][" + i + "] engine [" + engineName + "]");
 					//Executy query
 					Sys.Log2(10, "{" + threadGroupThreadId + "} Thread group [" + tGroup.name + "][" + i + "] prepare execute SQL on engine [" + engineName + "] with parameters " + String.Join(";", dParams.Select(x => "[$" + x.Key + "$]=[" + x.Value + "]").ToArray()));
+					DateTime dStart = DateTime.Now;
 					bool success = ExecuteQuery(engineName, sql, out long clientFromPool, out long clientToPool, out double processingTime,
 						out long cachehit, out double rowfetchtime, out long matchingrowcount, out double queryNetwork, out long totalQueryTime, out string internalQueryLog, out long readCursor);
+					DateTime dEnd = DateTime.Now;
 					Sys.Log("{" + threadGroupThreadId + "} Thread group [" + tGroup.name + "][" + i + "] execute SQL on engine [" + engineName + "], success [" + success.ToString() + "] query time [" + Sys.TimerGetText(totalQueryTime) + "]");
 
 					//Store execution result in output
-					if (tGroup.AddOutput(i, threadGroupThreadId, out ThreadGroupOutput tGroupOutput))
+					if (tGroup.AddOutput(i, threadGroupThreadId, dStart, dEnd, out ThreadGroupOutput tGroupOutput))
 					{
 						//optimize memory usage, store only values needed for output
 						tGroupOutput.SetSuccess(success);
@@ -1067,9 +1069,9 @@ namespace Sinequa.Plugin
 			return d;
 		}
 
-		public bool AddOutput(int id, int threadId, out ThreadGroupOutput tGroupOUtput)
+		public bool AddOutput(int id, int threadId, DateTime start, DateTime end, out ThreadGroupOutput tGroupOUtput)
 		{
-			tGroupOUtput = new ThreadGroupOutput(this.name, id, threadId);
+			tGroupOUtput = new ThreadGroupOutput(this.name, id, threadId, start, end);
 			if (!_dOUtput.TryAdd(id, tGroupOUtput))
 			{
 				tGroupOUtput = null;
@@ -1163,6 +1165,8 @@ namespace Sinequa.Plugin
 		public string threadGroupName { get; private set; }
 		public int id { get; private set; }
 		//info
+		public DateTime dStart { get; private set; }
+		public DateTime dEnd { get; private set; }
 		public string sql { get; private set; }
 		public int threadId { get; private set; }
 		public bool success { get; private set; }
@@ -1197,11 +1201,13 @@ namespace Sinequa.Plugin
 		public double internalQueryLogQueryProcessorParse { get; private set; }
 
 
-		public ThreadGroupOutput(string threadGroupName, int id, int threadId)
+		public ThreadGroupOutput(string threadGroupName, int id, int threadId, DateTime start, DateTime end)
 		{
 			this.threadGroupName = threadGroupName;
 			this.id = id;
 			this.threadId = threadId;
+			this.dStart = start;
+			this.dEnd = end;
 		}
 
 		public void SetSuccess(bool success)
@@ -1366,6 +1372,8 @@ namespace Sinequa.Plugin
 			StringBuilder sb = new StringBuilder();
 			sb.Append("thread group name" + separator);
 			sb.Append("iteration" + separator);
+			sb.Append("date start" + separator);
+			sb.Append("date end" + separator);
 			sb.Append("success" + separator);
 			sb.Append("engine name" + separator);
 			if ((flags & OutputInfo.SQLQuery) == OutputInfo.SQLQuery)
@@ -1410,6 +1418,8 @@ namespace Sinequa.Plugin
 			StringBuilder sb = new StringBuilder();
 			sb.Append(threadGroupName.ToString() + separator);
 			sb.Append(id.ToString() + separator);
+			sb.Append(dStart.ToString("yyyy-MM-dd HH:mm:ss.fff") + separator);
+			sb.Append(dEnd.ToString("yyyy-MM-dd HH:mm:ss.fff") + separator);
 			sb.Append(success.ToString() + separator);
 			sb.Append(engineName.ToString() + separator);
 			if ((flags & OutputInfo.SQLQuery) == OutputInfo.SQLQuery)
