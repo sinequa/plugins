@@ -40,6 +40,7 @@ namespace Sinequa.Plugin
 
 		public override Return OnExecute()
 		{
+
 			ConcurrentDictionary<int, ThreadGroupOutput> dOutput = new ConcurrentDictionary<int, ThreadGroupOutput>();
 
 			int parallelThreadGroup = 1;
@@ -63,14 +64,16 @@ namespace Sinequa.Plugin
 				if (!tGroup.Init(conf))
 				{
 					Sys.LogError("{" + threadGroupsThreadId + "} Cannot init Thread Group [" + tGroup.name + "]");
-					threadGroupsLoopState.Break();
+					threadGroupsLoopState.Stop();
+					return;
 				}
+
 				tGroup.stopWatch.Start();
 				Sys.Log("----------------------------------------------------");
 				Sys.Log("{" + threadGroupsThreadId + "} Thread Group [" + tGroup.name + "] start");
 				Sys.Log("----------------------------------------------------");
 
-				Parallel.ForEach(Infinite(tGroup), new ParallelOptions { MaxDegreeOfParallelism = tGroup.threadNumber }, (ignore, threadGrouploopState) =>
+				Parallel.ForEach(Infinite(tGroup), new ParallelOptions { MaxDegreeOfParallelism = tGroup.threadNumber }, (ignore, threadGroupLoopState) =>
 				{
 					Thread threadGroupThread = Thread.CurrentThread;
 					int threadGroupThreadId = threadGroupThread.ManagedThreadId;
@@ -81,7 +84,7 @@ namespace Sinequa.Plugin
 					//reached max iteration or max execution time - stop Parallel.ForEach
 					if (i == tGroup.maxIteration || tGroup.stopWatch.ElapsedMilliseconds >= tGroup.maxExecutionTime)
 					{
-						threadGrouploopState.Stop();
+						threadGroupLoopState.Stop();
 						if (i == tGroup.maxIteration)
 						{
 							Sys.Log("{" + threadGroupThreadId + "} Thread group [" + tGroup.name + "] max iteration reached [" + tGroup.maxIteration + "], stop threads execution");
@@ -128,6 +131,11 @@ namespace Sinequa.Plugin
 				Sys.Log("{" + threadGroupsThreadId + "} Thread Group [" + tGroup.name + "] stop");
 				Sys.Log("----------------------------------------------------");
 			});
+
+			foreach (ThreadGroup tGroup in conf.threadGroups.Values)
+			{
+				if (tGroup.configLoadError) return Return.Error;
+			}
 
 			return base.OnExecute();
 		}
@@ -749,6 +757,7 @@ namespace Sinequa.Plugin
 	public class ThreadGroup
 	{
 		private CmdConfigEngineBenchmark _conf;
+		public bool configLoadError { get; private set; }
 		public string name { get; private set; }
 		public string sql { get; private set; }
 		public CCFile paramCustomFile { get; private set; }
@@ -823,21 +832,34 @@ namespace Sinequa.Plugin
 			this._conf = conf;
 
 			this.Reset();
-			if (!LoadParameters()) return false;
-			if (!GetEnginesFromStrategy(_conf.engineStategy, _conf.lEngines)) return false;
+			if (!LoadParameters())
+			{
+				configLoadError = true;
+				return false;
+			}
+			if (!GetEnginesFromStrategy(_conf.engineStategy, _conf.lEngines))
+			{
+				configLoadError = true;
+				return false;
+			}
 			if (addUserACLs)
 			{
-				if(!LoadUsersACLs(_conf.domain, _conf.lUsers)) return false;
+				if (!LoadUsersACLs(_conf.domain, _conf.lUsers))
+				{
+					configLoadError = true;
+					return false;
+				}
 			}
 			return true;
 		}
 
-		public void Reset()
+		private void Reset()
 		{
+			this.configLoadError = false;
 			this.nbIterration = 0;
 			this.stopWatch.Stop();
 			this.stopWatch.Reset();
-
+			
 			this._paramsLoaded = false;
 			this._parameters.Clear();
 			this._paramIndex = 0;
@@ -854,18 +876,27 @@ namespace Sinequa.Plugin
 
 			ListStr lines = Fs.FileToList(paramCustomFile.File, true);
 			int i = 0;
-			ListStr headers = new ListStr();
+			List<string> headers = new List<string>();
 			foreach (string line in lines)
 			{
 				int realLineNumber = i + 1;
 
-				ListStr lineColumns = ListStr.ListFromStr(line, fileSep);
+				List<string> lineColumns = new List<string>();
+				lineColumns = line.Split(new Char[] { fileSep }).ToList();
+
+				if (line.Length == 0 || lineColumns.Count == 0)
+				{
+					Sys.LogWarning("Line [" + realLineNumber + "] is empty in parameter file [" + paramCustomFile.Name + "], line is ignored");
+					i++;
+					continue;
+				}
+
 				if (i == 0)
 				{
 					int duplicates = lineColumns.GroupBy(x => x).Where(g => g.Count() > 1).Count();
 					if(duplicates > 0)
 					{
-						Sys.LogError("Duplicates headers in custon file [" + paramCustomFile.Name + "]");
+						Sys.LogError("Duplicates headers in parameter file [" + paramCustomFile.Name + "]");
 						return false;
 					}
 					headers = lineColumns;
@@ -874,7 +905,7 @@ namespace Sinequa.Plugin
 				{
 					if(lineColumns.Count != headers.Count)
 					{
-						Sys.LogError("Line [" + realLineNumber + "] does not have the same number of columns as header in custon file [" + paramCustomFile.Name + "]");
+						Sys.LogError("Line [" + realLineNumber + "] does not have the same number of columns as header in parameter file [" + paramCustomFile.Name + "]");
 						return false;
 					}
 
@@ -883,9 +914,9 @@ namespace Sinequa.Plugin
 					foreach (string param in lineColumns) { 
 						if (String.IsNullOrEmpty(param))
 						{
-							Sys.LogWarning("Line [" + realLineNumber + "] contains an empty parameter for column [" + headers.Get(j) + "] in custon file [" + paramCustomFile.Name + "]");
+							Sys.LogWarning("Line [" + realLineNumber + "] contains an empty parameter for column [" + headers[j] + "] in parameter file [" + paramCustomFile.Name + "]");
 						}
-						d.Add(headers.Get(j), param);
+						d.Add(headers[j], param);
 						j++;
 					}
 					_parameters.Add(d);
@@ -1216,8 +1247,6 @@ namespace Sinequa.Plugin
 			if (String.IsNullOrEmpty(intquerylog)) return;
 			XmlDocument internalQueryLog = new XmlDocument();
 			internalQueryLog.LoadXml(intquerylog);
-
-			Sys.Log(internalQueryLog.OuterXml);
 
 			if (queryProcessorParse)
 			{
