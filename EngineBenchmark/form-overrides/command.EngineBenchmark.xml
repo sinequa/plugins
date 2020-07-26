@@ -162,7 +162,7 @@
 			<Entry>
 				<Display>{Lang("Output folder")}</Display>
 				<DataTag>CMD_OUTPUT_FOLDER_PATH</DataTag>
-				<Icon><ToolTip>{Lang("Folder to store output file. The output file will contains [thread group name][iteration][date start][date end][success][engine name] and any other information based on what you selected below. File name will be commandName_time.csv")}</ToolTip></Icon>
+				<Icon><ToolTip>{Lang("Folder to store output file. The output file will contains [thread group name][iteration][date start][date end][success][engine name] and any other information based on what you selected below. File name will be &lt;commandName&gt;_&lt;datetime&gt;.csv")}</ToolTip></Icon>
 			</Entry>
 			<Entry>
 				<Display>{Lang("CSV Separator")}</Display>
@@ -223,6 +223,32 @@
 				<DefaultValue>false</DefaultValue>
 				<Icon><ToolTip>{Lang("[SQL Parsing] duration of the SQL query. Default: false")}</ToolTip></Icon>
 			</CheckBox>
+			
+		</Group>
+		<Group merge-type="add" id="threads_settings">
+			<Display>Lang("Dump")</Display>
+			<CheckBox>
+				<Display>{Lang("Internal Query Log XML")}</Display>
+				<DataTag>CMD_DUMP_INTERNALQUERYLOG_XML</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Dump the Internal Query Log XML into 'output folder'/&lt;commandName&gt;_internalquerylog_&lt;datetime&gt;. File name: internalquerylog_&lt;iteration&gt;.xml.  Default: false")}</ToolTip></Icon>
+			</CheckBox>
+			<Entry>
+				<Display>{Lang("Min processing time - Internal Query Log")}</Display>
+				<DataTag>CMD_DUMP_INTERNALQUERYLOG_XML_MIN_PROCESSING_TIME</DataTag>
+				<Icon><ToolTip>{Lang("Minimum query processing time to dump Internal Query Log XML to dump folder. Value is in milliseconds. Default: 1000")}</ToolTip></Icon>
+			</Entry>
+			<CheckBox>
+				<Display>{Lang("Internal Query Analysis XML")}</Display>
+				<DataTag>CMD_DUMP_INTERNALQUERYANALYSIS_XML</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Dump the Internal Query Analysis XML into 'output folder'/&lt;commandName&gt;_internalqueryanalysis_&lt;datetime&gt;. File name: internalqueryanalysis_&lt;iteration&gt;.xml.  Default: false")}</ToolTip></Icon>
+			</CheckBox>
+			<Entry>
+				<Display>{Lang("Min processing time - Internal Query Analysis")}</Display>
+				<DataTag>C	MD_DUMP_INTERNALQUERYANALYSIS_XML_MIN_PROCESSING_TIME</DataTag>
+				<Icon><ToolTip>{Lang("Minimum query processing time to dump Internal Query Analysis XML to dump folder. Value is in milliseconds. Default: 1000")}</ToolTip></Icon>
+			</Entry>	
 		</Group>
 	</Tab>
 	<List merge-type="add" id="enginestartegy">

@@ -90,7 +90,7 @@ Adding users in "Users ACLs" will automatically add one of the user security cla
 
 Field | Type | Default value | Required | Comment
 --- | --- | --- | --- | --- 
-Output folder | String | | yes | Folder to store output file. The output file will contains [thread group name][iteration][date start][date end][success][engine name] and any other information based on what you selected below. File name will be "commandName_time.csv" <br> [Thread group name] => "thread group name" configured in "thread group" <br> [date start] => thread start date, format: yyyy-MM-dd HH:mm:ss.fff <br> [date end] => thread end date, format: yyyy-MM-dd HH:mm:ss.fff <br> [iteration] => integer representing execution order <br> [success] => boolean, false if query failed <br> [engine name] => Engine used to execute query 
+Output folder | String | | yes | Folder to store output file. The output file will contains [thread group name][iteration][date start][date end][success][engine name] and any other information based on what you selected below. File name will be "commandName_datetime.csv" <br> [Thread group name] => "thread group name" configured in "thread group" <br> [date start] => thread start date, format: yyyy-MM-dd HH:mm:ss.fff <br> [date end] => thread end date, format: yyyy-MM-dd HH:mm:ss.fff <br> [iteration] => integer representing execution order <br> [success] => boolean, false if query failed <br> [engine name] => Engine used to execute query 
 CSV Separator | Char | \t | yes | Seperator used within the output CSV file
 SQL Query | Boolean | false | | Add the following infomation in the output file: [sql]. <br>  [sql] => SQL query in chich variables are replaced with values from "parameter file" <br> **NOTE**: This can make the output file very big especially if you have a long query or lot of ACLs for users. It will also increase the memory footprint of the command: SQL queries will be keept in memory until the end of execution.
 Query timers | Boolean | true | | Add the following infomation in the output file: [totalQueryTime][processingTime][rowfetchtime][readCursor] <br> [totalQueryTime] => represent toal query time: get client from pool, execute query, network and client to pool<br> [processingTime] => processing time attribute from query result <br> [rowfetchtime] => rowfetch time attribute from query result <br> [readCursor] => iterate on rows until reach the end of cursor
@@ -101,6 +101,19 @@ Parameters | Boolean | true | | Add values from parameter file used to replace v
 Internal Query Log - Search RWA | Boolean | false | | Add [Search RWA] duration per index. Represent the time to execute the search on the index, include DB Query time + full text search time.
 Internal Query Log - DB Query | Boolean | false | | Add [Execute DBQuery] and [Fetching DBQuery] durations per index. <br> [Execute DBQuery] => time to evaluate conditions on structured columns <br> [Fetching DBQuery] => time to build the document set that validate conditions on structured columns 
 Internal Query Log - Query Processor Parse | Boolean | false | | [SQL Parsing] duration of the SQL query
+
+### Dump
+
+Field | Type | Default value | Required | Comment
+--- | --- | --- | --- | --- 
+Internal Query Log XML | Boolean | false | | Dump the Internal Query Log XML into a sub folder of the "output folder". <br> Sub folder name is "commandName_internalquerylog_datetime". <br> Dump file name: internalquerylog_iteration.xml <br> **NOTE**: you need to add internalquerylog to the select statment of the query.
+Min processing time - Internal Query Log | Integer | 1000 | yes | Minimum query processing time to dump Internal Query Log XML to dump folder. Value is in milliseconds.
+Internal Query Analysis XML | Boolean | false | | Dump the Internal Query Analysis XML into a sub folder of the "output folder". <br> Sub folder name is "commandName_internalqueryanalysis_datetime". <br> Dump file name: internalqueryanalysis_iteration.xml <br> **NOTE**: you need to add internalqueryanalysis to the select statment of the query and have a "text contains = '...'" clause
+Min processing time - Internal Query Analysis | Integer | 1000 | yes | Minimum query processing time to dump Internal Query Analysis XML to dump folder. Value is in milliseconds.
+
+**Recommendation**: You should use the dump option(s) to get more information only on the top N longest queries. To do so, run the command a first time and look at the "90th percentile processing time" and use this value to configure the "Min processing time" fields. By doing so you reduce the number of dumps that are generated and by extension you are making the analysis easier.
+
+**NOTE**: Dumping the data on the disk can slow down the EngineBenchmark command. Unlike the "output" information, this is not stored in memory but wrtitten on the disk right after query execution. 
 
 ## Logs
 

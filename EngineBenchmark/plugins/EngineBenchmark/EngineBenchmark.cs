@@ -21,7 +21,7 @@ namespace Sinequa.Plugin
 	public class EngineBenchmark : CommandPlugin
 	{
 		CmdConfigEngineBenchmark conf;
-
+		
 		public override Return OnPreExecute()
 		{
 			conf = new CmdConfigEngineBenchmark(this.Command.Doc);
@@ -35,12 +35,13 @@ namespace Sinequa.Plugin
 				if(!CC.Init(true)) return Return.Error;
 			}
 
+			if (!Toolbox.CreateDir(conf.outputFolderPath)) return Return.Error;
+
 			return base.OnPreExecute();
 		}
 
 		public override Return OnExecute()
 		{
-
 			ConcurrentDictionary<int, ThreadGroupOutput> dOutput = new ConcurrentDictionary<int, ThreadGroupOutput>();
 
 			int parallelThreadGroup = 1;
@@ -61,7 +62,7 @@ namespace Sinequa.Plugin
 				Thread threadGroupsThread = Thread.CurrentThread;
 				int threadGroupsThreadId = threadGroupsThread.ManagedThreadId;
 
-				if (!tGroup.Init(conf))
+				if (!tGroup.Init(this, conf))
 				{
 					Sys.LogError("{" + threadGroupsThreadId + "} Cannot init Thread Group [" + tGroup.name + "]");
 					threadGroupsLoopState.Stop();
@@ -110,7 +111,7 @@ namespace Sinequa.Plugin
 					Sys.Log2(10, "{" + threadGroupThreadId + "} Thread group [" + tGroup.name + "][" + i + "] prepare execute SQL on engine [" + engineName + "] with parameters " + String.Join(";", dParams.Select(x => "[$" + x.Key + "$]=[" + x.Value + "]").ToArray()));
 					DateTime dStart = DateTime.Now;
 					bool success = ExecuteQuery(engineName, sql, out long clientFromPool, out long clientToPool, out double processingTime,
-						out long cachehit, out double rowfetchtime, out long matchingrowcount, out double queryNetwork, out long totalQueryTime, out string internalQueryLog, out long readCursor);
+						out long cachehit, out double rowfetchtime, out long matchingrowcount, out double queryNetwork, out long totalQueryTime, out string internalQueryLog, out string internalQueryAnalysis, out long readCursor);
 					DateTime dEnd = DateTime.Now;
 					Sys.Log("{" + threadGroupThreadId + "} Thread group [" + tGroup.name + "][" + i + "] execute SQL on engine [" + engineName + "], success [" + success.ToString() + "] query time [" + Sys.TimerGetText(totalQueryTime) + "]");
 
@@ -125,6 +126,8 @@ namespace Sinequa.Plugin
 						if (conf.outputQueryTimers) tGroupOutput.SetQueryTimers(processingTime, cachehit, rowfetchtime, matchingrowcount, totalQueryTime, readCursor);
 						if (conf.outputNetworkTimers) tGroupOutput.SetNetworkTimers(queryNetwork);
 						if (conf.outputIQL) tGroupOutput.SetInternalQueryLog(internalQueryLog, conf.outputIQLSearchRWA, conf.outputIQLDBQuery,  conf.outputIQLProcessorParse);
+						if (conf.dumpIQL) tGroupOutput.DumpInternalQueryLog(internalQueryLog, i, processingTime);
+						if (conf.dumpIQA) tGroupOutput.DumpInternalQueryAnalysis(internalQueryAnalysis, i, processingTime);
 					}
 				});
 
@@ -144,21 +147,7 @@ namespace Sinequa.Plugin
 
 		public override Return OnPostExecute(bool execute_ok)
 		{
-			if (!Directory.Exists(conf.outputFolderPath))
-			{
-				try
-				{
-					Directory.CreateDirectory(conf.outputFolderPath);
-				}
-				catch(Exception e)
-				{
-					Sys.LogError("Cannot create output directory [" + conf.outputFolderPath + "]");
-					Sys.LogError(e);
-					return Return.Error;
-				}
-			}
-
-			string outputFileName = this.Command.Name + "_" + DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss-fff");
+			string outputFileName = this.Command.Name + " " + this.conf.startTime.ToString("yyyy-MM-dd HH-mm-ss");
 			string outputFilePath = Str.PathAdd(conf.outputFolderPath, outputFileName + ".csv");
 
 			Sys.Log("Create output file [" + outputFilePath + "]");
@@ -205,7 +194,7 @@ namespace Sinequa.Plugin
 
 		private bool ExecuteQuery(string engineName, string sql, out long clientFromPool, out long clientToPool, 
 			out double processingTime, out long cachehit, out double rowfetchtime, out long matchingrowcount, 
-			out double queryNetwork, out long totalQueryTime, out string internalQueryLog, out long readCursor)
+			out double queryNetwork, out long totalQueryTime, out string internalQueryLog, out string internalQueryAnalysis, out long readCursor)
 		{
 			EngineClient _client = null;
 			Engine.Client.Cursor _cursor = null;
@@ -219,6 +208,7 @@ namespace Sinequa.Plugin
 			queryNetwork = 0;
 			totalQueryTime = 0;
 			internalQueryLog = Str.Empty;
+			internalQueryAnalysis = Str.Empty;
 			readCursor = 0;
 
 			Stopwatch swTotalQueryTime = new Stopwatch();
@@ -256,6 +246,10 @@ namespace Sinequa.Plugin
 					if (_cursor.HasAttribute("internalquerylog"))
 					{
 						internalQueryLog = _cursor.GetAttribute("internalquerylog");
+					}
+					if (_cursor.HasAttribute("internalqueryanalysis"))
+					{
+						internalQueryAnalysis = _cursor.GetAttribute("internalqueryanalysis");
 					}
 					queryNetwork = execCursor - processingTime;
 
@@ -352,6 +346,7 @@ namespace Sinequa.Plugin
     public class CmdConfigEngineBenchmark
 	{
 		private XDoc _XMLConf = null;
+		public DateTime startTime { get; private set; }
 
 		//engine config
 		public ListOf<CCEngine> lEngines { get; private set; }
@@ -381,9 +376,16 @@ namespace Sinequa.Plugin
 		public bool outputIQLDBQuery { get; private set; }
 		public bool outputIQLProcessorParse { get; private set; }
 
+		//dump
+		public bool dumpIQL { get; private set; }
+		public int dumpIQLMinProcessingTime { get; private set; }
+		public bool dumpIQA { get; private set; }
+		public int dumpIQAMinProcessingTime { get; private set; }
+
 		public CmdConfigEngineBenchmark(XDoc conf)
 		{
-			_XMLConf = conf;
+			this._XMLConf = conf;
+			this.startTime = DateTime.Now;
 		}
 
 		public bool LoadConfig()
@@ -703,6 +705,28 @@ namespace Sinequa.Plugin
 			}
 			#endregion
 
+			#region dump
+			//internal query log
+			dataTag = "CMD_DUMP_INTERNALQUERYLOG_XML";
+			if (!DatatagExist(dataTag)) return false;
+			dumpIQL = _XMLConf.ValueBoo(dataTag, false);
+
+			//internal query log min processing time
+			dataTag = "CMD_DUMP_INTERNALQUERYLOG_XML_MIN_PROCESSING_TIME";
+			if (!DatatagExist(dataTag)) return false;
+			dumpIQLMinProcessingTime = _XMLConf.ValueInt(dataTag, 1000);
+
+			//internal query analysis
+			dataTag = "CMD_DUMP_INTERNALQUERYANALYSIS_XML";
+			if (!DatatagExist(dataTag)) return false;
+			dumpIQA = _XMLConf.ValueBoo(dataTag, false);
+
+			//internal query analysis min processing time
+			dataTag = "CMD_DUMP_INTERNALQUERYANALYSIS_XML_MIN_PROCESSING_TIME";
+			if (!DatatagExist(dataTag)) return false;
+			dumpIQAMinProcessingTime = _XMLConf.ValueInt(dataTag, 1000);
+			#endregion
+
 			Sys.Log2(20, "Load configuration OK");
 
 			LogConfig();
@@ -742,6 +766,10 @@ namespace Sinequa.Plugin
 			Sys.Log("Output internal query log - search RWA : [" + this.outputIQLSearchRWA.ToString() + "]");
 			Sys.Log("Output internal query log - DB Query : [" + this.outputIQLDBQuery.ToString() + "]");
 			Sys.Log("Output internal query log - query processor parse : [" + this.outputIQLProcessorParse.ToString() + "]");
+			Sys.Log("Dump internal query log : [" + this.dumpIQL.ToString() + "]");
+			if(this.dumpIQL) Sys.Log("Dump internal query log min processing time : [" + this.dumpIQLMinProcessingTime.ToString() + "]");
+			Sys.Log("Dump internal query analysis : [" + this.dumpIQA.ToString() + "]");
+			if(this.dumpIQA) Sys.Log("Dump internal query analysis min processing time : [" + this.dumpIQAMinProcessingTime.ToString() + "]");
 			Sys.Log("----------------------------------------------------");
 		}
 
@@ -759,6 +787,24 @@ namespace Sinequa.Plugin
 	public class ThreadGroup
 	{
 		private CmdConfigEngineBenchmark _conf;
+		private EngineBenchmark _engineBenchmarkCommand;
+
+		public CmdConfigEngineBenchmark conf
+		{
+			get
+			{
+				return _conf;
+			}
+		}
+
+		public EngineBenchmark engineBenchmark
+		{
+			get
+			{
+				return _engineBenchmarkCommand;
+			}
+		}
+
 		public bool configLoadError { get; private set; }
 		public string name { get; private set; }
 		public string sql { get; private set; }
@@ -829,8 +875,9 @@ namespace Sinequa.Plugin
 			return sb.ToString();
 		}
 
-		public bool Init(CmdConfigEngineBenchmark conf)
+		public bool Init(EngineBenchmark engineBenchmarkCommand, CmdConfigEngineBenchmark conf)
 		{
+			this._engineBenchmarkCommand = engineBenchmarkCommand;
 			this._conf = conf;
 
 			this.Reset();
@@ -1071,7 +1118,7 @@ namespace Sinequa.Plugin
 
 		public bool AddOutput(int id, int threadId, DateTime start, DateTime end, out ThreadGroupOutput tGroupOUtput)
 		{
-			tGroupOUtput = new ThreadGroupOutput(this.name, id, threadId, start, end);
+			tGroupOUtput = new ThreadGroupOutput(this, id, threadId, start, end);
 			if (!_dOUtput.TryAdd(id, tGroupOUtput))
 			{
 				tGroupOUtput = null;
@@ -1162,7 +1209,7 @@ namespace Sinequa.Plugin
 
 	public class ThreadGroupOutput
 	{
-		public string threadGroupName { get; private set; }
+		private ThreadGroup _threadGroup;
 		public int id { get; private set; }
 		//info
 		public DateTime dStart { get; private set; }
@@ -1201,9 +1248,9 @@ namespace Sinequa.Plugin
 		public double internalQueryLogQueryProcessorParse { get; private set; }
 
 
-		public ThreadGroupOutput(string threadGroupName, int id, int threadId, DateTime start, DateTime end)
+		public ThreadGroupOutput(ThreadGroup threadGroup, int id, int threadId, DateTime start, DateTime end)
 		{
-			this.threadGroupName = threadGroupName;
+			this._threadGroup = threadGroup;
 			this.id = id;
 			this.threadId = threadId;
 			this.dStart = start;
@@ -1350,6 +1397,52 @@ namespace Sinequa.Plugin
 			return lDurations.ToStr(separator);
 		}
 
+		public bool DumpInternalQueryLog(string internalQueryLog, int iteration, double processingTime)
+		{
+			if (processingTime < this._threadGroup.conf.dumpIQLMinProcessingTime)
+			{
+				Sys.Log2(20, "Skip InternalQueryLog dump, ProcessingTime [" + processingTime.ToString() + "] < Minimum query processing time to dump Internal Query Log XML [" + this._threadGroup.conf.dumpIQLMinProcessingTime.ToString() + "]");
+				return true;
+			}
+
+			if (String.IsNullOrEmpty(internalQueryLog))
+			{
+				Sys.LogWarning("Cannot dump InternalQueryLog for iteration [" + iteration.ToString() + "], Internal Query Log is empty. Are you missing <internalquerylog> in your select statement ?");
+				return false;
+			}
+
+			string dirName = this._threadGroup.engineBenchmark.Command.Name + "_" + "internalquerylog" + "_" + this._threadGroup.conf.startTime.ToString("yyyy-MM-dd HH-mm-ss");
+			string fileName = "internalquerylog" + "_" + iteration.ToString() + ".xml";
+			string filePath = Str.PathAdd(this._threadGroup.conf.outputFolderPath, dirName, fileName);
+
+			Sys.Log2(20, "Create InternalQueryLog XML dump [" + filePath + "]");
+
+			return Toolbox.DumpFile(filePath, internalQueryLog);
+		}
+
+		public bool DumpInternalQueryAnalysis(string internalQueryAnalysis, int iteration, double processingTime)
+		{
+			if (processingTime < this._threadGroup.conf.dumpIQAMinProcessingTime)
+			{
+				Sys.Log2(20, "Skip InternalQueryAnalysis dump, ProcessingTime [" + processingTime.ToString() + "] < Minimum query processing time to dump Internal Query Analysis XML [" + this._threadGroup.conf.dumpIQAMinProcessingTime.ToString() + "]");
+				return true;
+			}
+
+			if (String.IsNullOrEmpty(internalQueryAnalysis))
+			{
+				Sys.LogWarning("Cannot dump InternalQueryAnalysis for iteration [" + iteration.ToString() + "], Internal Query Log is empty. Are you missing <internalqueryanalysis> in your select statement ? <internalqueryanalysis> is only returned when you have a <where text contains '...'> clause");
+				return false;
+			}
+
+			string dirName = this._threadGroup.engineBenchmark.Command.Name + " " + "internalqueryanalysis" + " " + this._threadGroup.conf.startTime.ToString("yyyy-MM-dd HH-mm-ss");
+			string fileName = "internalquerylog" + "_" + iteration.ToString() + ".xml";
+			string filePath = Str.PathAdd(this._threadGroup.conf.outputFolderPath, dirName, fileName);
+
+			Sys.Log2(20, "Create InternalQueryAnalysis XML dump [" + filePath + "]");
+
+			return Toolbox.DumpFile(filePath, internalQueryAnalysis);
+		}
+
 		private ListStr GetInternalQueryLogIndexDurations(Dictionary<string, double> d)
 		{
 			ListStr lDurations = new ListStr();
@@ -1416,7 +1509,7 @@ namespace Sinequa.Plugin
 		public string ToCSV(OutputInfo flags, char separator = ';')
 		{
 			StringBuilder sb = new StringBuilder();
-			sb.Append(threadGroupName.ToString() + separator);
+			sb.Append(_threadGroup.name.ToString() + separator);
 			sb.Append(id.ToString() + separator);
 			sb.Append(dStart.ToString("yyyy-MM-dd HH:mm:ss.fff") + separator);
 			sb.Append(dEnd.ToString("yyyy-MM-dd HH:mm:ss.fff") + separator);
@@ -1655,6 +1748,43 @@ namespace Sinequa.Plugin
 			}
 
 			return sb.ToString();
+		}
+
+		// Create recurive dir recursively 
+		public static bool CreateDir(string folderPath)
+		{
+			//create output folder
+			if (!Directory.Exists(folderPath))
+			{
+				try
+				{
+					Directory.CreateDirectory(folderPath);
+				}
+				catch (Exception e)
+				{
+					Sys.LogError("Cannot create output directory [" + folderPath + "]");
+					Sys.LogError(e);
+					return false;
+				}
+			}
+			return true;
+		}
+
+		public static  bool DumpFile(string filePath, string content)
+		{
+			string folderPath = Str.PathGetDir(filePath);
+			if (!Toolbox.CreateDir(folderPath)) return false;
+
+			try
+			{
+				File.WriteAllText(filePath, content, Encoding.UTF8);
+			}
+			catch (Exception e)
+			{
+				Sys.LogError("Cannot write file [" + filePath + "] " + e.Message);
+				return false;
+			}
+			return true;
 		}
 	}
 
