@@ -246,7 +246,7 @@
 			</CheckBox>
 			<Entry>
 				<Display>{Lang("Min processing time - Internal Query Analysis")}</Display>
-				<DataTag>C	MD_DUMP_INTERNALQUERYANALYSIS_XML_MIN_PROCESSING_TIME</DataTag>
+				<DataTag>CMD_DUMP_INTERNALQUERYANALYSIS_XML_MIN_PROCESSING_TIME</DataTag>
 				<Icon><ToolTip>{Lang("Minimum query processing time to dump Internal Query Analysis XML to dump folder. Value is in milliseconds. Default: 1000")}</ToolTip></Icon>
 			</Entry>	
 		</Group>
