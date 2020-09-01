@@ -46,8 +46,12 @@ This is where the attached plugins come in handy:
 - The `GeoPoint` function plugin can convert a given pair of latitude and longitude into a `POINT` primitive:
 
     ![GeoPoint](doc/images/geopoint.png)
+    
+- `GeoPoint` can be combined with the `Sexagesimal2GPS` function plugin, which can convert a given latitude or longitude in sexagesimal format (`"40°12'23"N"`) to the decimal format (`"40.254896"`).
 
-- This function can be combined with the `LamberExt2GPS` function plugin, if the source data is provided in the *Lambert 2 Extended* coordinate system (instead of regular latitude and longitude):
+    ![GeoPoint](doc/images/sexagesimal-conversion.png)
+    
+- Similarly, `GeoPoint` can be combined with the `LamberExt2GPS` function plugin, if the source data is provided in the *Lambert 2 Extended* coordinate system:
 
     ![Lambert 2](doc/images/lambert2.png)
 
@@ -83,7 +87,7 @@ WHERE (...) AND JSON('{
         "op":"intersection",
         "a": {
             "type" : "index",
-            "name" : "geo2d"
+            "name" : "mycoordinates"
         },
         "b": {
             "type": "Feature",
