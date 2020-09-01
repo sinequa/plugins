@@ -1,4 +1,4 @@
-﻿///////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////
 // Plugin GeoSearch : file GeoFunctions.cs
 //
 
@@ -14,11 +14,12 @@ using Sinequa.Indexer;
 using Sinequa.Search;
 using Sinequa.Engine.Client;
 using System.Globalization;
+using System.Text.RegularExpressions;
 //using Sinequa.Ml;
 
 namespace Sinequa.Plugin
 {
-    // Create a POINT primitive from a latitude and a longitude
+    // Create a POINT primitive from a latitude and a longitude (in decimal degrees, eg. "45.2548962" and "2.354874612")
     public class GeoPoint : FunctionPlugin
     {
 
@@ -31,7 +32,7 @@ namespace Sinequa.Plugin
 
     }
 
-    // Create a MULTIPOINT primitive from a list of coordinates.
+    // Create a MULTIPOINT primitive from a list of coordinates (in decimal degrees, eg. "45.2548962" and "2.354874612").
     // The coordinates are given as a list of semicolon-separated latitudes (first input) and longitudes (second input)
     public class GeoMultipoint : FunctionPlugin
     {
@@ -61,7 +62,33 @@ namespace Sinequa.Plugin
         }
     }
 
-    // Converts coordinates from the Lambert 2 Extended system to the regular GPS system
+    // Converts coordinates from the Sexagesimal format (eg. 48°51′24″N) to the regular GPS system (decimal degrees, eg. "45.2548962" and "2.354874612")
+    // See https://en.wikipedia.org/wiki/Geographic_coordinate_conversion
+    public class Sexagesimal2GPS : FunctionPlugin {
+
+        public override string GetValue(IDocContext ctxt, params string[] values)
+        {
+            double value = 0;
+            
+            string pattern = @"^\s*(\d+)\s*°\s*(\d+)\s*['′]\s*([\d.]+)\s*[″""]\s*([NSEOW])\s*$";
+
+            Match match = Regex.Match(values[0], pattern);
+
+            if(match.Success) {
+                double deg = double.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+                double min = double.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
+                double sec = double.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
+                string direction = match.Groups[4].Value;
+                double sign = direction == "N" || direction == "E" ? +1 : -1;
+
+                value = sign * (deg + min / 60.0 + sec / 3600);
+            }
+
+            return value.ToString(CultureInfo.InvariantCulture);
+        }
+    }
+
+    // Converts coordinates from the Lambert 2 Extended system to the regular GPS system (decimal degrees, eg. "45.2548962" and "2.354874612")
     // See https://fr.wikipedia.org/wiki/Projection_conique_conforme_de_Lambert#Lambert_carto_et_Lambert_%C3%A9tendu
     // Translated to C# from https://gist.github.com/lovasoa/096d8be82520ea6b0abe
     public class LamberExt2GPS : FunctionPlugin
