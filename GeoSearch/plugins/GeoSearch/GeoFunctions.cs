@@ -70,18 +70,21 @@ namespace Sinequa.Plugin
         {
             double value = 0;
             
-            string pattern = @"^\s*(\d+)\s*°\s*(\d+)\s*['′]\s*([\d.]+)\s*[″""]\s*([NSEOW])\s*$";
+            string pattern = @"^\s*(\d+)\s*°\s*(\d+)?\s*['′]?\s*([\d.]+)?\s*[″""]?\s*([NSEOW])\s*$";
 
             Match match = Regex.Match(values[0], pattern);
 
             if(match.Success) {
                 double deg = double.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
-                double min = double.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
-                double sec = double.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
+                double min = match.Groups[2].Value == ""? 0 : double.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
+                double sec = match.Groups[3].Value == ""? 0 : double.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
                 string direction = match.Groups[4].Value;
                 double sign = direction == "N" || direction == "E" ? +1 : -1;
 
                 value = sign * (deg + min / 60.0 + sec / 3600);
+            }
+            else {
+                throw new Exception("Incorrect format: "+values[0]);
             }
 
             return value.ToString(CultureInfo.InvariantCulture);
