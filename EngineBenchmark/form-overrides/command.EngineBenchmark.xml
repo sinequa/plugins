@@ -19,7 +19,7 @@
 				<Icon><ToolTip>{Lang("First available: first available Engine from the list (ping ok). Random: load balance the queries between the Engines from the list")}</ToolTip></Icon>
 			</Combo>
 		</Group>
-		<Group merge-type="add" id="sql_settings">
+		<Group merge-type="add" id="thread_group_settings">
 			<Display>Lang("Thread groups configuration")</Display>
 			<CheckBox>
 				<Display>{Lang("Execute thread groups in parallel")}</Display>
@@ -111,6 +111,9 @@
 				</Col>
 			</Grid>
 		</Group>
+	</Tab>
+	<Tab merge-type="addafter" merge-id="general" id="security">
+		<Display>{Lang("Security")}</Display>
 		<Group merge-type="add" id="users_acl_settings">
 			<Display>Lang("Users ACLs")</Display>
 			<Combo>
@@ -157,81 +160,124 @@
 				</Col>
 			</Grid>
 		</Group>
-		<Group merge-type="add" id="threads_settings">
-			<Display>Lang("Output")</Display>
+	</Tab>
+	<Tab merge-type="addafter" merge-id="security" id="output">
+		<Display>{Lang("Output")}</Display>
+		<Group merge-type="add" id="output_settings">
 			<Entry>
 				<Display>{Lang("Output folder")}</Display>
 				<DataTag>CMD_OUTPUT_FOLDER_PATH</DataTag>
-				<Icon><ToolTip>{Lang("Folder to store output file. The output file will contains [thread group name][iteration][date start][date end][success][engine name] and any other information based on what you selected below. File name will be &lt;commandName&gt;_&lt;datetime&gt;.csv")}</ToolTip></Icon>
+				<Icon><ToolTip>{Lang("Folder to store output files (Queries, Cursor size breakdown, Dump and Engine activity). Folder name: &lt;commandName&gt;_&lt;datetime&gt;")}</ToolTip></Icon>
 			</Entry>
 			<Entry>
 				<Display>{Lang("CSV Separator")}</Display>
 				<DataTag>CMD_OUTPUT_CSV_SEPARATOR</DataTag>
-				<Icon><ToolTip>{Lang("Seperator used within the output CSV file. Type: char. Default: \t")}</ToolTip></Icon>
+				<Icon><ToolTip>{Lang("Seperator used within the output CSV files. Type: char. Default: \t")}</ToolTip></Icon>
 			</Entry>
+		</Group>		
+		<Group merge-type="add" id="queries_settings">
+			<Display>{Lang("Queries")}</Display>
+			<CheckBox>
+				<Display>{Lang("Queries ouput")}</Display>
+				<DataTag>CMD_OUTPUT_QUERIES</DataTag>
+				<DefaultValue>true</DefaultValue>
+				<Icon><ToolTip>{Lang("Create '&lt;ThreadGroupName&gt;_Queries.csv' file(s) within the '&lt;OutputFolder&gt;'. CSV will contains [Thread Group Name][Iteration][Date Start][Date End][Success][Engine name][Cursor Size] and any other information based on what you selected below. Default: true")}</ToolTip></Icon>
+			</CheckBox>
 			<CheckBox>
 				<Display>{Lang("SQL Query")}</Display>
 				<DataTag>CMD_OUTPUT_SQL_QUERY</DataTag>
 				<DefaultValue>false</DefaultValue>
-				<Icon><ToolTip>{Lang("Add the following infomation in the output file: [sql]. Default: false. NOTE: This can make the output file very big especially if you have a long query or lot of ACLs for users")}</ToolTip></Icon>
+				<Icon><ToolTip>{Lang("Add the following infomation to the '&lt;ThreadGroupName&gt;_Queries.csv' file: [sql]. Default: false. NOTE: This can make the output file very big especially if you have a long query or lot of ACLs for users")}</ToolTip></Icon>
 			</CheckBox>
 			<CheckBox>
 				<Display>{Lang("Query timers")}</Display>
 				<DataTag>CMD_OUTPUT_QUERY_TIMERS</DataTag>
 				<DefaultValue>true</DefaultValue>
-				<Icon><ToolTip>{Lang("Add the following infomation in the output file: [totalQueryTime][processingTime][rowfetchtime][readCursor]. Default: true")}</ToolTip></Icon>
+				<Icon><ToolTip>{Lang("Add the following infomation to the '&lt;ThreadGroupName&gt;_Queries.csv' file: [TotalQueryTime][ProcessingTime][RowFetchTime][ReadCursor]. Default: true")}</ToolTip></Icon>
 			</CheckBox>
 			<CheckBox>
 				<Display>{Lang("Query Info")}</Display>
 				<DataTag>CMD_OUTPUT_QUERY_INFO</DataTag>
 				<DefaultValue>true</DefaultValue>
-				<Icon><ToolTip>{Lang("Add the following infomation in the output file: [cachehit][matchingrowcount]. Default: true")}</ToolTip></Icon>
+				<Icon><ToolTip>{Lang("Add the following infomation to the '&lt;ThreadGroupName&gt;_Queries.csv' file: [CacheHit][MatchingRowCount][PostGroupByMatchingRowCount]. Default: true")}</ToolTip></Icon>
 			</CheckBox>
 			<CheckBox>
 				<Display>{Lang("Client timers")}</Display>
 				<DataTag>CMD_OUTPUT_CLIENT_TIMERS</DataTag>
 				<DefaultValue>true</DefaultValue>
-				<Icon><ToolTip>{Lang("Add the following infomation in the output file: [clientFromPool][clientToPool]. Default: true")}</ToolTip></Icon>
+				<Icon><ToolTip>{Lang("Add the following infomation to the '&lt;ThreadGroupName&gt;_Queries.csv' file: [ClientFromPool][ClientToPool]. Default: true")}</ToolTip></Icon>
 			</CheckBox>
 			<CheckBox>
-				<Display>{Lang("Network timers")}</Display>
-				<DataTag>CMD_OUTPUT_NETWORK_TIMERS</DataTag>
+				<Display>{Lang("Network and deserialization timer")}</Display>
+				<DataTag>CMD_OUTPUT_CURSOR_NETWORK_DESERIALIZATION_TIMER</DataTag>
 				<DefaultValue>true</DefaultValue>
-				<Icon><ToolTip>{Lang("Add the following infomation in the output file: [queryNetwork]. Default: true")}</ToolTip></Icon>
+				<Icon><ToolTip>{Lang("Add the following infomation to the '&lt;ThreadGroupName&gt;_Queries.csv' file: [Curosr Network and Deserialization]. Default: true")}</ToolTip></Icon>
 			</CheckBox>
 			<CheckBox>
 				<Display>{Lang("Parameters")}</Display>
 				<DataTag>CMD_OUTPUT_PARAMETERS</DataTag>
 				<DefaultValue>true</DefaultValue>
-				<Icon><ToolTip>{Lang("Add values from parameter file used to replace variables in the SQL query. If your thread group use User ACLs", the user full name will be displayed. Default: true")}</ToolTip></Icon>
+				<Icon><ToolTip>{Lang("Add values from parameter file used to replace variables in the SQL query to the '&lt;ThreadGroupName&gt;_Queries.csv' file. If your thread group use User ACLs", the user full name will be displayed. Default: true")}</ToolTip></Icon>
 			</CheckBox>
 			<CheckBox>
-				<Display>{Lang("Internal Query Log - Search RWA")}</Display>
+				<Display>{Lang("Internal Query Log - Search RWA timers")}</Display>
 				<DataTag>CMD_OUTPUT_INTERNALQUERYLOG_SEARCH_RWA</DataTag>
 				<DefaultValue>false</DefaultValue>
-				<Icon><ToolTip>{Lang("Add [Search RWA] duration per index. Default: false")}</ToolTip></Icon>
+				<Icon><ToolTip>{Lang("Add the following infomation to the '&lt;ThreadGroupName&gt;_Queries.csv' file: [SearchRWA][FullTextSearchRWA] duration per Engine/Index. Default: false")}</ToolTip></Icon>
 			</CheckBox>
 			<CheckBox>
-				<Display>{Lang("Internal Query Log - DB Query")}</Display>
+				<Display>{Lang("Internal Query Log - DB Query timers")}</Display>
 				<DataTag>CMD_OUTPUT_INTERNALQUERYLOG_DB_QUERY</DataTag>
 				<DefaultValue>false</DefaultValue>
-				<Icon><ToolTip>{Lang("Add [Execute DBQuery] and [Fetching DBQuery] durations per index. Default: false")}</ToolTip></Icon>
+				<Icon><ToolTip>{Lang("Add the following infomation to the '&lt;ThreadGroupName&gt;_Queries.csv' file: [ExecuteDBQuery] and [FetchingDBQuery] duration per Engine/Index. Default: false")}</ToolTip></Icon>
 			</CheckBox>
 			<CheckBox>
-				<Display>{Lang("Internal Query Log - Query Processor Parse")}</Display>
-				<DataTag>CMD_OUTPUT_INTERNALQUERYLOG_QUERY_PROCESSOR_PARSE</DataTag>
+				<Display>{Lang("Internal Query Log - Distributions &amp; Correlations timers")}</Display>
+				<DataTag>CMD_OUTPUT_INTERNALQUERYLOG_DISTRIBUTIONS_CORRELATIONS</DataTag>
 				<DefaultValue>false</DefaultValue>
-				<Icon><ToolTip>{Lang("[SQL Parsing] duration of the SQL query. Default: false")}</ToolTip></Icon>
+				<Icon><ToolTip>{Lang("Add the following infomation to the '&lt;ThreadGroupName&gt;_Queries.csv' file: [Distribution] and [Correlation] durations per Engine. Default: false")}</ToolTip></Icon>
 			</CheckBox>
-			
+			<CheckBox>
+				<Display>{Lang("Internal Query Log - header timers")}</Display>
+				<DataTag>CMD_OUTPUT_INTERNALQUERYLOG_QUERY_HEADER</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Add the following infomation to the '&lt;ThreadGroupName&gt;_Queries.csv' file: [AcqMRdLk][AcqDBRdLk][NetworkNotificationToWorkerStart][MsgDeserialize][QueryProcessorParse] durations. Default: false")}</ToolTip></Icon>
+			</CheckBox>
+			<CheckBox>
+				<Display>{Lang("Internal Query Log - Brokering Info &amp; timer")}</Display>
+				<DataTag>CMD_OUTPUT_INTERNALQUERYLOG_BROKERING</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Add the following infomation to the '&lt;ThreadGroupName&gt;_Queries.csv' file: [Broker Engine][Client Engine(s)] and [MergeAttributes] duration. Default: false")}</ToolTip></Icon>
+			</CheckBox>
+			<CheckBox>
+				<Display>{Lang("Internal Query Log - Threads count")}</Display>
+				<DataTag>CMD_OUTPUT_INTERNALQUERYLOG_THREADS</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Add the following infomation to the '&lt;ThreadGroupName&gt;_Queries.csv' file: [Header threads][Threads per engine][Total threads]. Default: false")}</ToolTip></Icon>
+			</CheckBox>
 		</Group>
-		<Group merge-type="add" id="threads_settings">
+		<Group merge-type="add" id="output_cursorsizebreakdown">
+			<Display>Lang("Cursor size breakdown")</Display>
+			<CheckBox>
+				<Display>{Lang("Cursor size breakdown output")}</Display>
+				<DataTag>CMD_OUTPUT_CURSOR_SIZE_BREAKDOWN</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Create '&lt;ThreadGroupName&gt;_CursorSize.csv' file(s) within the '&lt;OutputFolder&gt;'.CSV will contains [Thread Group Name][Iteration][Date Start][Date End][Success][Engine name][Cursor Size] and detailed infomation about column and attributes size per query. Default: false")}</ToolTip></Icon>
+			</CheckBox>
+			<CheckBox>
+				<Display>{Lang("Output empty columns")}</Display>
+				<DataTag>CMD_OUTPUT_CURSOR_SIZE_EMPTY_COLUMNS</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Add columns where the size value is 0 on for all queries executed. Default: false")}</ToolTip></Icon>
+			</CheckBox>
+		</Group>
+		<Group merge-type="add" id="dump_settings">
 			<Display>Lang("Dump")</Display>
 			<CheckBox>
 				<Display>{Lang("Internal Query Log XML")}</Display>
 				<DataTag>CMD_DUMP_INTERNALQUERYLOG_XML</DataTag>
 				<DefaultValue>false</DefaultValue>
-				<Icon><ToolTip>{Lang("Dump the Internal Query Log XML into 'output folder'/&lt;commandName&gt;_internalquerylog_&lt;datetime&gt;. File name: internalquerylog_&lt;iteration&gt;.xml.  Default: false")}</ToolTip></Icon>
+				<Icon><ToolTip>{Lang("Dump the Internal Query Log XML into '&lt;OutputFolder&gt;/&lt;InternalQueryLog&gt;/'. File name: 'internalquerylog_&lt;ThreadGroupName&gt;_&lt;Iteration&gt;.xml'.  Default: false")}</ToolTip></Icon>
 			</CheckBox>
 			<Entry>
 				<Display>{Lang("Min processing time - Internal Query Log")}</Display>
@@ -242,15 +288,61 @@
 				<Display>{Lang("Internal Query Analysis XML")}</Display>
 				<DataTag>CMD_DUMP_INTERNALQUERYANALYSIS_XML</DataTag>
 				<DefaultValue>false</DefaultValue>
-				<Icon><ToolTip>{Lang("Dump the Internal Query Analysis XML into 'output folder'/&lt;commandName&gt;_internalqueryanalysis_&lt;datetime&gt;. File name: internalqueryanalysis_&lt;iteration&gt;.xml.  Default: false")}</ToolTip></Icon>
+				<Icon><ToolTip>{Lang("Dump the Internal Query Analysis XML into '&lt;OutputFolder&gt;/&lt;InternalQueryAnalysis&gt;/'. File name: 'internalqueryanalysis_&lt;ThreadGroupName&gt;_&lt;Iteration&gt;.xml'.  Default: false")}</ToolTip></Icon>
 			</CheckBox>
 			<Entry>
 				<Display>{Lang("Min processing time - Internal Query Analysis")}</Display>
 				<DataTag>CMD_DUMP_INTERNALQUERYANALYSIS_XML_MIN_PROCESSING_TIME</DataTag>
 				<Icon><ToolTip>{Lang("Minimum query processing time to dump Internal Query Analysis XML to dump folder. Value is in milliseconds. Default: 1000")}</ToolTip></Icon>
-			</Entry>	
+			</Entry>
+			<CheckBox>
+				<Display>{Lang("Cursor")}</Display>
+				<DataTag>CMD_DUMP_CURSOR</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Dump the Cursor into '&lt;OutputFolder&gt;/&lt;Cursors&gt;/'. File name: 'curosr_&lt;ThreadGroupName&gt;_&lt;Iteration&gt;.csv'. Default: false")}</ToolTip></Icon>
+			</CheckBox>
+			<Entry>
+				<Display>{Lang("Min size - Cursor")}</Display>
+				<DataTag>CMD_DUMP_CURSOR_MIN_SIZE</DataTag>
+				<Icon><ToolTip>{Lang("Minimum Cursor size to dump the Cursor to dump folder. Value is in megabyte. Default: 1")}</ToolTip></Icon>
+			</Entry>
+			<Entry>
+				<Display>{Lang("Min processing time - Cursor")}</Display>
+				<DataTag>CMD_DUMP_CURSOR_MIN_PROCESSING_TIME</DataTag>
+				<Icon><ToolTip>{Lang("Minimum query processing time to dump the Cursor to dump folder. Value is in milliseconds. Default: 1000")}</ToolTip></Icon>
+			</Entry>
+		</Group>
+		<Group merge-type="add" id="engine_activity_settings">
+			<Display>Lang("Engine activity")</Display>
+			<CheckBox>
+				<Display>{Lang("Engine activity monitoring")}</Display>
+				<DataTag>CMD_ACTIVITY_MONITORING</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Monitor Engine(s) activity for specified engines.  Default: false. Create a 'EngineActivity.csv' file that contains [Engine] [Process Time] [Process CPUTime Ms] [Process CPUUserTime Ms] [Process CPUSystemTime Ms] [Process VMSize Gb] [Process WSSize Gb] [Process InstalledMemory Gb] [Process AvailableMemory Gb] [Queries AverageProcessingTime Ms] [Queries Throughput] [Overload] [IsRecoveringFromOverload] [Threads Working] [Threads Idle] ")}</ToolTip></Icon>
+			</CheckBox>
+			<Display>Lang("Engines")</Display>
+			<MultiEntity>
+				<Display>{Lang("Engines")}</Display>
+				<Form>engine</Form>
+				<DataType>engine</DataType>
+				<DataTag>CMD_ACTIVITY_ENGINE_LIST</DataTag>
+				<ListName>listengine2</ListName>
+				<Icon><ToolTip>{Lang("An Engine or a list of Engines activity to be monitored ")}</ToolTip></Icon>
+			</MultiEntity>
+			<Entry>
+				<Display>{Lang("Frequency")}</Display>
+				<DataTag>CMD_ACTIVITY_FREQUENCY</DataTag>
+				<Icon><ToolTip>{Lang("Define the frequency to request activity from Engine(s). Value is in milliseconds. Default: 1000")}</ToolTip></Icon>
+			</Entry>
+			<CheckBox>
+				<Display>{Lang("Dump")}</Display>
+				<DataTag>CMD_ACTIVITY_DUMP</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Dump Engine Activity XML files into '&lt;OutputFolder&gt;/&lt;EngineActivity&gt;/'. File name: 'activity_&lt;engine_name&gt;_&lt;count&gt;.xml'. Default: false")}</ToolTip></Icon>
+			</CheckBox>
 		</Group>
 	</Tab>
+	<!-- LISTS -->
 	<List merge-type="add" id="enginestartegy">
 		<Name>enginestartegy</Name>
 		<Item><Name>First available</Name><Value>First_available</Value></Item>
