@@ -31,8 +31,8 @@ namespace Sinequa.Plugin
 
 	public static class Toolbox
 	{
-		//Get engine clients
-		//please make sure client is return to the pool before the end of execution.
+		//Get engine client
+		//please make sure client is return to the pool
 		public static EngineClient EngineClientFromPool(string engineName)
 		{
 			EngineClient client = null;
@@ -290,7 +290,7 @@ namespace Sinequa.Plugin
 
 	}
 
-	public class EngineCustomStatus
+	public class EngineCustomStatus : IEquatable<EngineCustomStatus>
 	{
 		public bool IsAlive { get; } = false;
 		public int ConnectionCount { get; } = 0;
@@ -345,23 +345,25 @@ namespace Sinequa.Plugin
 
 		public void LogIndexesGrid()
         {
-			List<(string row, string column, string value)> lGridRows = new List<(string row, string column, string value)>();
+			LogTable logTableIndexes = new LogTable(Name);
+			logTableIndexes.SetInnerColumnSpaces(1, 1);
+
 			long totalDocs = 0;
 			long totalGhosts = 0;
 			foreach (IndexStatus idxStatus in indexesStatus)
 			{
 				long docs = idxStatus.DocumentCount;
-				lGridRows.Add(($"{idxStatus.Name}", "Document Count", docs.ToString("N0", CultureInfo.InvariantCulture)));
+				logTableIndexes.AddItem($"{idxStatus.Name}", "Document Count", docs.ToString("N0", CultureInfo.InvariantCulture));
 				totalDocs += docs;
 
-				long ghosts = idxStatus.DocumentCount;
-				lGridRows.Add(($"{idxStatus.Name}", "Ghost Count", ghosts.ToString("N0", CultureInfo.InvariantCulture)));
+				long ghosts = idxStatus.GhostCount;
+				logTableIndexes.AddItem($"{idxStatus.Name}", "Ghost Count", ghosts.ToString("N0", CultureInfo.InvariantCulture));
 				totalGhosts += ghosts;
 			}
-			lGridRows.Add(("Total", "Document Count", totalDocs.ToString("N0", CultureInfo.InvariantCulture)));
-			lGridRows.Add(("Total", "Ghost Count", totalGhosts.ToString("N0", CultureInfo.InvariantCulture)));
-			LogArray LA = new LogArray(lGridRows, $"{Name}");
-			LA.Log();
+			logTableIndexes.AddItem("Total", "Document Count", totalDocs.ToString("N0", CultureInfo.InvariantCulture));
+			logTableIndexes.AddItem("Total", "Ghost Count", totalGhosts.ToString("N0", CultureInfo.InvariantCulture));
+			
+			logTableIndexes.SysLog();
 		}
 
 		public void Log(bool indexesStatus = false)
@@ -370,117 +372,292 @@ namespace Sinequa.Plugin
 			if (indexesStatus) LogIndexesGrid();
 		}
 
+		public bool Equals(EngineCustomStatus other)
+		{
+			if (other is null)
+				return false;
+
+			return this.Name == other.Name && this.Host == other.Host && this.Port == other.Port;
+		}
+
+		public override bool Equals(object obj) => Equals(obj as EngineCustomStatus);
+		public override int GetHashCode() => (Name, Host, Port).GetHashCode();
+
 	}
 
-	public class LogArray
-	{
-		private readonly char LINESEP = '-';
-		private readonly char COLSEP = '|';
-		private readonly string EMPTYSEP = " ";
 
-		private List<(string row, string column, string value)> _l;
-		private List<string> _lColumns;
-		private List<string> _lRows;
+	public static class EngineStatusHelper
+    {
+		public static List<EngineCustomStatus> GetEnginesStatus(List<CCEngine> lEngineConfig)
+		{
+			List<EngineCustomStatus> lEngineCustomStatus = new List<EngineCustomStatus>();
+			foreach (CCEngine engine in lEngineConfig)
+			{
+				EngineCustomStatus ECS = Toolbox.GetEngineStatus(engine.FullName);
+				if (ECS == null || !ECS.IsAlive)
+				{
+					Sys.LogError($"Can't connect to Engine [{engine.FullName}]");
+					return null;
+				}
+				lEngineCustomStatus.Add(ECS);
+			}
+			return lEngineCustomStatus;
+		}
+
+		public static void LogEnginesStatus(List<EngineCustomStatus> lEngineCustomStatus, bool logIndexesStatus = true)
+        {
+			Sys.Log($"----------------------------------------------------");
+			Sys.Log($"Engine(s) Status");
+			foreach (EngineCustomStatus ECS in lEngineCustomStatus) ECS.Log(logIndexesStatus);
+			Sys.Log($"----------------------------------------------------");
+		}
+
+		public static long LogIndexesChanges(List<EngineCustomStatus> A, List<EngineCustomStatus> B)
+		{
+			long totalChanges = 0;
+
+			if (A.Except(B).Count() != 0)
+			{
+				Sys.LogError($"Cannot compare different lists of Engine Status");
+				return -1;
+            }
+
+			foreach (EngineCustomStatus A_ECS in A)
+            {
+				LogTable logTabeIndexesChanges = new LogTable($"Engine [{A_ECS.Name}]");
+				logTabeIndexesChanges.SetInnerColumnSpaces(1, 1);
+
+				foreach (IndexStatus A_ECS_IDX in A_ECS.indexesStatus)
+                {
+					IndexStatus B_ECS_IDX = B.Single(B_ECS => Str.EQ(B_ECS.Name, A_ECS.Name)).indexesStatus.Single(x => Str.EQ(x.Name, A_ECS_IDX.Name));
+
+					long delta = B_ECS_IDX.DocumentCount - A_ECS_IDX.DocumentCount;
+					logTabeIndexesChanges.AddItem(A_ECS_IDX.Name, "From", A_ECS_IDX.DocumentCount.ToString("+0.#;-0.#;0"));
+					logTabeIndexesChanges.AddItem(A_ECS_IDX.Name, "To", B_ECS_IDX.DocumentCount.ToString("+0.#;-0.#;0"));
+					logTabeIndexesChanges.AddItem(A_ECS_IDX.Name, "Change", delta.ToString("+0.#;-0.#;0"));
+					totalChanges += Math.Abs(delta);
+				}
+
+				logTabeIndexesChanges.SysLog();
+			}
+
+			return totalChanges;			
+		}
+
+	}
+
+	public class LogTable
+	{
+		private char _rowSep = '-';
+		private char _colSep = '|';
+
+		private int _innerLeftColSPaces = 0;
+		private int _innerRightColSPaces = 0;
+
+		private bool _logHeader = true;
+
+		private List<LogTableItem> _lItems = new List<LogTableItem>();
+		private List<string> _lSepearators = new List<string>();
+
+		private List<string> _lColumns = new List<string>();
+		private List<string> _lRows = new List<string>();
+
 		private Dictionary<string, int> _dColumnsMaxLength = new Dictionary<string, int>();
+
 		private string _name;
 
-		private bool _init = false;
-		private int _firstColumnMaxLength = -1;
+		private int _firstColumnMaxLength = 0;
 
-		public LogArray(List<(string row, string column, string value)> l, string name = Str.Empty)
+		public LogTable(string tableName = Str.Empty)
 		{
-			this._l = l;
-			this._name = name;
+			if (tableName == null) throw new ArgumentException("cannot be set to null", "tableName");
+
+			this._name = tableName;
+			SetFistColumnMaxLength(_name);
 		}
 
-		public void Log()
-		{
-			if (!_init) Init();
+		public void SetRowSeparatorChar(char rowSep) { this._rowSep = rowSep; }
 
-			Sys.Log(LineSep());
-			Sys.Log(Header());
-			Sys.Log(LineSep());
-			foreach (string r in _lRows)
-			{
-				Sys.Log(Row(r));
-			}
-			Sys.Log(LineSep());
+		public void SetColumnSeparatorChar(char colSep) { this._colSep = colSep; }
+
+		public void SetInnerColumnSpaces(int left, int right)
+		{
+			if (left > 0) this._innerLeftColSPaces = left;
+			if (right > 0) this._innerRightColSPaces = right;
 		}
 
-		public bool Init()
+		public void SetLogHeader(bool logHeader) { this._logHeader = logHeader; }
+
+		public bool AddItem(string rowName, string columnName, string value)
 		{
-			if (_init) return true;
+			if (String.IsNullOrEmpty(rowName) || String.IsNullOrEmpty(columnName)) return false;
 
-			if (_l == null || _l.Count == 0) return false;
+			_lItems.Add(new LogTableItem(rowName, columnName, value));
 
-			_lColumns = _l.Select(x => x.column).Distinct().ToList();
-			if (_lColumns == null || _lColumns.Count == 0) return false;
+			_lRows.AddUnique(rowName);
+			SetFistColumnMaxLength(rowName);
 
-			_lRows = _l.Select(x => x.row).Distinct().ToList();
-			if (_lRows == null || _lRows.Count == 0) return false;
-
-			int nameLength = _name.Length;
-			int maxRowNameLength = _l.Max(x => x.row.Length);
-			_firstColumnMaxLength = nameLength >= maxRowNameLength ? nameLength : maxRowNameLength;
-
-			GetColumnsMaxLength();
-
-			_init = true;
+			_lColumns.AddUnique(columnName);
+			SetColumnMaxLength(columnName, value);
 
 			return true;
 		}
 
-		private void GetColumnsMaxLength()
+		public bool AddItems(List<(string rowName, string columnName, string value)> lItems)
+        {
+			bool bOk = true;
+			foreach((string rowName, string columnName, string value) item in lItems)
+            {
+				bOk = AddItem(item.rowName, item.columnName, item.value);
+				if (!bOk) return bOk;
+			}
+			return bOk;
+        }
+
+		public bool AddUniqueItem(string rowName, string columnName, string value)
+        {
+			if (_lItems.SingleOrDefault(x => Str.EQ(x.row, rowName) && Str.EQ(x.column, columnName) && Str.EQ(x.value, value)) == null) return AddItem(rowName, columnName, value);
+			return true;
+		}
+
+		public void AddSeparatorAfterRow(string rowName)
 		{
-			foreach (string column in _lColumns)
+			_lSepearators.AddUnique(rowName);
+		}
+
+		private void SetFistColumnMaxLength(string token)
+		{
+			if (token.Length > _firstColumnMaxLength) _firstColumnMaxLength = token.Length;
+		}
+
+		private void SetColumnMaxLength(string column, string value)
+		{
+			if (_dColumnsMaxLength.ContainsKey(column))
 			{
-				_dColumnsMaxLength.Add(column, GetColumnMaxLength(column));
+				if (value.Length > _dColumnsMaxLength[column]) _dColumnsMaxLength[column] = value.Length;
+			}
+			else
+			{
+				int max = column.Length > value.Length ? column.Length : value.Length;
+				_dColumnsMaxLength.Add(column, max);
 			}
 		}
 
-		private int GetColumnMaxLength(string columnName)
-		{
-			int columnNameLength = columnName.Length;
-			int columnValueMaxLength = _l.Where(x => Str.EQNC(x.column, columnName)).Max(x => x.value.Length);
-			return columnNameLength >= columnValueMaxLength ? columnNameLength : columnValueMaxLength;
-		}
+		public void SysLog() { Sys.Log(Log()); }
 
-		private string Row(string rowName)
+		public void SysLog2(int logLevel) { Sys.Log2(logLevel, Log()); }
+
+		public void ConsoleLog() { Console.WriteLine(Log()); }
+
+		private string Log()
 		{
 			StringBuilder sb = new StringBuilder();
-			//first column
-			sb.Append(COLSEP + rowName.PadRight(_firstColumnMaxLength) + COLSEP);
-			//columns
+			sb.AppendLine();
+			sb.AppendLine(GetLineSep());
+			if (_logHeader)
+			{
+				sb.AppendLine(GetHeaders());
+				sb.AppendLine(GetLineSep());
+			}
+			foreach (string row in _lRows)
+			{
+				sb.AppendLine(GetRow(row));
+				if (_lSepearators.Contains(row)) sb.AppendLine(GetLineSep());
+			}
+			sb.AppendLine(GetLineSep());
+			return sb.ToString();
+		}
+
+		private string GetSepInnerLeft() { return Str.Empty.PadLeft(_innerLeftColSPaces, _rowSep); }
+
+		private string GetSepInnerRight() { return Str.Empty.PadLeft(_innerRightColSPaces, _rowSep); }
+
+		private string GetSepToken(PadDirection direction, int colLength)
+		{
+			string s = null;
+
+			if (direction == PadDirection.Left)
+			{
+				s = _rowSep + GetSepInnerLeft() + Str.Empty.PadLeft(colLength, _rowSep) + GetSepInnerRight();
+			}
+			else if (direction == PadDirection.Right)
+			{
+				s = _rowSep + GetSepInnerLeft() + Str.Empty.PadRight(colLength, _rowSep) + GetSepInnerRight();
+			}
+			return s;
+		}
+
+		private string GetCellInnerLeft() { return Str.Empty.PadLeft(_innerLeftColSPaces); }
+
+		private string GetCellInnerRight() { return Str.Empty.PadLeft(_innerRightColSPaces); }
+
+		private string GetCellToken(string value, PadDirection direction, int colLength)
+		{
+			string s = null;
+			if (direction == PadDirection.Left)
+			{
+				s = _colSep + GetCellInnerLeft() + value.PadLeft(colLength) + GetCellInnerRight();
+			}
+			else if (direction == PadDirection.Right)
+			{
+				s = _colSep + GetCellInnerLeft() + value.PadRight(colLength) + GetCellInnerRight();
+			}
+			return s;
+		}
+
+		private string GetLineSep()
+		{
+			StringBuilder sb = new StringBuilder();
+			sb.Append(GetSepToken(PadDirection.Left, _firstColumnMaxLength));
+			//foreach (int columnMaxLength in _dColumnsMaxLength.Values) sb.Append(GetSepToken(PadDirection.Left, columnMaxLength));
+			foreach (string column in _lColumns) sb.Append(GetSepToken(PadDirection.Left, _dColumnsMaxLength[column]));
+			sb.Append(_rowSep);
+			return sb.ToString();
+		}
+
+		private string GetHeaders()
+		{
+			StringBuilder sb = new StringBuilder();
+			sb.Append(GetCellToken(_name, PadDirection.Right, _firstColumnMaxLength));
+			foreach (string column in _lColumns) sb.Append(GetCellToken(column, PadDirection.Left, _dColumnsMaxLength[column]));
+			sb.Append(_colSep);
+			return sb.ToString();
+		}
+
+		private string GetRow(string rowName)
+		{
+			StringBuilder sb = new StringBuilder();
+			sb.Append(GetCellToken(rowName, PadDirection.Right, _firstColumnMaxLength));
 			foreach (string column in _lColumns)
 			{
-				string value = _l.Single(x => Str.EQNC(x.row, rowName) && Str.EQNC(x.column, column)).value;
-				sb.Append(value.PadLeft(_dColumnsMaxLength[column]) + COLSEP);
+				string value = _lItems.SingleOrDefault(item => Str.EQNC(item.row, rowName) && Str.EQNC(item.column, column)).value;
+				if (value == null) value = Str.Empty;
+				sb.Append(GetCellToken(value, PadDirection.Left, _dColumnsMaxLength[column]));
 			}
+			sb.Append(_colSep);
 			return sb.ToString();
 		}
 
-		private string Header()
+		internal enum PadDirection
 		{
-			StringBuilder sb = new StringBuilder();
-			//first column
-			sb.Append(COLSEP + _name.PadRight(_firstColumnMaxLength) + COLSEP);
-			//columns
-			foreach (string column in _lColumns)
+			Left,
+			Right
+		}
+
+		internal class LogTableItem
+		{
+			public string row { get; private set; }
+			public string column { get; private set; }
+			public string value { get; private set; }
+
+			public LogTableItem(string row, string column, string value)
 			{
-				sb.Append(column.PadLeft(_dColumnsMaxLength[column]) + COLSEP);
+				this.row = row;
+				this.column = column;
+				this.value = value;
 			}
-			return sb.ToString();
 		}
 
-		private string LineSep()
-		{
-			StringBuilder sb = new StringBuilder();
-			//first column
-			sb.Append(LINESEP + Str.Empty.PadLeft(_firstColumnMaxLength, LINESEP) + LINESEP);
-			//columns
-			foreach (int columnMaxLength in _dColumnsMaxLength.Values) sb.Append(Str.Empty.PadLeft(columnMaxLength, LINESEP) + LINESEP);
-			return sb.ToString();
-		}
 	}
 
 }

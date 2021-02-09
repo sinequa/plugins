@@ -40,7 +40,7 @@ namespace Sinequa.Plugin
 
 		//optional cursor attributes
 		public string internalQueryLog { get; private set; }
-		public string internalQueryAnalysis { get; private set; }
+		public Dictionary<string, string> dInternalQueryAnalysis { get; private set; } = new Dictionary<string, string>();
 
 		//cursor size breakdown - represent the cursor attributes / columns sizes
 		public Dictionary<string, long> cursorSizeBreakdown { get; private set; }
@@ -230,7 +230,10 @@ namespace Sinequa.Plugin
 		private void GetCursorIQLIQAAttribute()
 		{
 			if (_cursor.HasAttribute("internalquerylog")) internalQueryLog = _cursor.GetAttribute("internalquerylog");
-			if (_cursor.HasAttribute("internalqueryanalysis")) internalQueryAnalysis = _cursor.GetAttribute("internalqueryanalysis");
+			//if (_cursor.HasAttribute("internalqueryanalysis")) internalQueryAnalysis = _cursor.GetAttribute("internalqueryanalysis");
+			foreach (string attributeName in _cursor.AttributesNames)
+				if (Str.BeginWith(attributeName, "internalqueryanalysis", false)) 
+					if(!Str.IsEmpty(_cursor.GetAttribute(attributeName))) dInternalQueryAnalysis.Add(attributeName, _cursor.GetAttribute(attributeName));
 		}
 
 		private bool ReadCursor()
@@ -311,6 +314,7 @@ namespace Sinequa.Plugin
 
 			//write cursor
 			//TODO - dump separator exist in column / attr ?
+			//TODO use log array ?
 			if (_threadGroup.conf.dumpCursor && processingTime >= _threadGroup.conf.dumpCursorMinProcessingTime && cursorSizeMB >= _threadGroup.conf.dumpCursorMinSize)
             {
 				string dumpQueryFilePath = Toolbox.GetOutputFilePath(_threadGroup.conf.outputFolderPath, $"cursor_{_threadGroup.name}_{iteration}", "csv", "Cursors");

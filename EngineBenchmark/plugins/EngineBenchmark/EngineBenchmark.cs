@@ -6,32 +6,68 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Sinequa.Common;
 using Sinequa.Configuration;
 using Sinequa.Plugins;
+using Sinequa.Search;
 
 namespace Sinequa.Plugin
 {
 
 	public class EngineBenchmark : CommandPlugin
 	{
+		const string EngineBenchmarkVersion = "0.9.4";
+
 		private EngineActivityManager _engineActivityManager;
 		private CmdConfigEngineBenchmark _conf;
+		//update status every X iterations of a thread group	
+		private int _updateStatusFrequency = 50;
+
+		//Date set at start (after config is loaded, before thread group starts)
+		private DateTime _tStart;
+		//Date set a end of benchmark (after all thread group have been executed, before stats computation)
+		private DateTime _tEnd;
+		//Engine/Indexes status (after config is loaded, before thread group starts)
+		public List<EngineCustomStatus> lECSStart { get; private set; }
+		//Engine/Indexes status (after all thread group have been executed, before stats computation)
+		public List<EngineCustomStatus> lECSEnd { get; private set; }
+
 		public CmdConfigEngineBenchmark conf
-        {
+		{
 			get { return _conf; }
-        }
+		}
+
+		public EngineBenchmark()
+		{
+			Sys.Log($"----------------------------------------------------");
+			Sys.Log($"EngineBenchmark Version [{EngineBenchmarkVersion}]");
+			Sys.Log($"----------------------------------------------------");
+		}
 
 		public override Return OnPreExecute()
 		{
+			UpdateStatus(StatusType.LoadConfig);
+			//load and check configuration (form override)
 			_conf = new CmdConfigEngineBenchmark(this);
 			if (!_conf.LoadConfig()) return Return.Error;
+
+			//load engines status for all Engines in the Sinequa Grid. In case of brokering, other Engines than the ones defined in the "engine" list can be used
+			UpdateStatus(StatusType.EngineStatus);
+			lECSStart = EngineStatusHelper.GetEnginesStatus(CC.Current.Engines.ToList());
+			if (lECSStart == null)
+			{
+				Sys.LogError($"All Engines must be up and running in order to execute benchmark");
+				return Return.Error;
+			}
+			else EngineStatusHelper.LogEnginesStatus(lECSStart);
 
 			//load config (principals) if a thread group recquire user ACLs
 			if (_conf.threadGroups.Any(x => x.Value.addUserACLs))
 			{
+				UpdateStatus(StatusType.AppInit);
 				Sys.Log($"Start loading configuration and domains");
 				if (!Application.InitWith(Application.Feature.Default | Application.Feature.Domains)) return Return.Error;
 			}
@@ -46,12 +82,16 @@ namespace Sinequa.Plugin
 				_engineActivityManager.StartPeriodicEngineActivity();
 			}
 
+			//benchmark starts (starts after load config and before any thread group starts)
+			_tStart = DateTime.Now;
+
 			return base.OnPreExecute();
 		}
 
 		public override Return OnExecute()
 		{
 			ConcurrentDictionary<int, ThreadGroupOutput> dOutput = new ConcurrentDictionary<int, ThreadGroupOutput>();
+			int totalQueries = 0;
 
 			int parallelThreadGroup = 1;
 			Sys.Log($"----------------------------------------------------");
@@ -78,7 +118,7 @@ namespace Sinequa.Plugin
 					return;
 				}
 
-				tGroup.stopWatch.Start();
+				tGroup.Start();
 				Sys.Log($"----------------------------------------------------");
 				Sys.Log($"{{{threadGroupsThreadId}}} Thread Group [{tGroup.name}] start");
 				Sys.Log($"----------------------------------------------------");
@@ -89,17 +129,21 @@ namespace Sinequa.Plugin
 					int threadGroupThreadId = threadGroupThread.ManagedThreadId;
 
 					//increment number iterations
-					int i = Interlocked.Increment(ref tGroup.nbIterration);
+					int threadGroupIteration = tGroup.IncrementIterations();
+					//increment total queries (all thread groups)
+					Interlocked.Increment(ref totalQueries); 
 
 					//reached max iteration or max execution time - stop Parallel.ForEach
-					if (i == tGroup.maxIteration || tGroup.stopWatch.ElapsedMilliseconds >= tGroup.maxExecutionTime)
+					bool stopThreadGroup = threadGroupIteration == tGroup.maxIteration;
+					bool reachedMaxExecutionTime = tGroup.maxExecutionTime != -1 && tGroup.ExecutionTime >= tGroup.maxExecutionTime;
+					if (stopThreadGroup || reachedMaxExecutionTime)
 					{
 						threadGroupLoopState.Stop();
-						if (i == tGroup.maxIteration)
+						if (stopThreadGroup)
 						{
 							Sys.Log($"{{{threadGroupThreadId}}} Thread group [{tGroup.name}] max iteration reached [{tGroup.maxIteration}], stop threads execution");
 						}
-						if (tGroup.stopWatch.ElapsedMilliseconds >= tGroup.maxExecutionTime)
+						if (reachedMaxExecutionTime)
 						{
 							Sys.Log($"{{{threadGroupThreadId}}} Thread group [{tGroup.name}] max execution time reached [" + tGroup.maxExecutionTime + " ms], stop threads execution");
 						}
@@ -107,47 +151,63 @@ namespace Sinequa.Plugin
 
 					//Pause current thread based on random time
 					int sleepTime = tGroup.GetSleep();
-					Sys.Log2(20, $"{{{threadGroupThreadId}}} Thread group [{tGroup.name}][{i}] sleep [{sleepTime}]");
+					Sys.Log2(20, $"{{{threadGroupThreadId}}} Thread group [{tGroup.name}][{threadGroupIteration}] sleep [{sleepTime}]");
 					Thread.Sleep(sleepTime);
 
 					//get SQL query - SQL query variables have been replaced by parameters based on parameter strategy
 					string sql = tGroup.GetSQLQuery(out Dictionary<string, string> dParams);
-					Sys.Log2(20, $"{{{threadGroupThreadId}}} Thread group [{tGroup.name}][{i}] sql [{sql}]");
+					Sys.Log2(20, $"{{{threadGroupThreadId}}} Thread group [{tGroup.name}][{threadGroupIteration}] sql [{sql}]");
 					//get Engine for EngineClient based on Engine Strategy
 					string engineName = tGroup.GetEngine();
-					Sys.Log2(20, $"{{{threadGroupThreadId}}} Thread group [{tGroup.name}][{i}] engine [{engineName}]");
+					Sys.Log2(20, $"{{{threadGroupThreadId}}} Thread group [{tGroup.name}][{threadGroupIteration}] engine [{engineName}]");
 					//Executy query
-					Sys.Log2(10, $"{{{threadGroupThreadId}}} Thread group [{tGroup.name}][{i}] prepare execute SQL on engine [{engineName}] with parameters " + String.Join(";", dParams.Select(x => $"[${ x.Key }$]={x.Value}").ToArray()));
+					Sys.Log2(10, $"{{{threadGroupThreadId}}} Thread group [{tGroup.name}][{threadGroupIteration}] prepare execute SQL on engine [{engineName}] with parameters " + String.Join(";", dParams.Select(x => $"[{ x.Key }]=[{x.Value}]").ToArray()));
 					DateTime dStart = DateTime.Now;
 
 					//execute SQL query
-					BenchmarkQuery query = new BenchmarkQuery(threadGroupThreadId, tGroup.name, i, engineName, sql, tGroup);
+					BenchmarkQuery query = new BenchmarkQuery(threadGroupThreadId, tGroup.name, threadGroupIteration, engineName, sql, tGroup);
 					query.Execute();
 
 					DateTime dEnd = DateTime.Now;
-					Sys.Log($"{{{threadGroupThreadId}}} Thread group [{tGroup.name}][{i}] execute SQL on engine [{engineName}], success [{query.success}] total query time [{Sys.TimerGetText(query.totalQueryTimer)}] processing time [{Sys.TimerGetText(query.processingTime)}]");
+					Sys.Log($"{{{threadGroupThreadId}}} Thread group [{tGroup.name}][{threadGroupIteration}] execute SQL on engine [{engineName}], success [{query.success}] total query time [{Sys.TimerGetText(query.totalQueryTimer)}] processing time [{Sys.TimerGetText(query.processingTime)}]");
 
 					//Store execution result in output
-					if (tGroup.AddOutput(i, threadGroupThreadId, dStart, dEnd, out ThreadGroupOutput tGroupOutput))
+					if (tGroup.AddOutput(threadGroupIteration, threadGroupThreadId, dStart, dEnd, out ThreadGroupOutput tGroupOutput))
 					{
 						//optimize memory usage, store only values needed for output
-						tGroupOutput.SetSuccess(query.success);
-						tGroupOutput.SetInfo(engineName, dParams, query.cursorSize);
-						if (_conf.outputSQLQuery) tGroupOutput.SetSQL(sql);
-						if (_conf.outputClientTimers) tGroupOutput.SetClientTimers(query.clientFromPoolTimer, query.clientToPoolTimer);
-						if (_conf.outputQueryTimers) tGroupOutput.SetQueryTimers(query.processingTime, query.cacheHit, query.rowFetchTime, query.matchingRowCount, query.postGroupByMatchingRowCount, query.totalQueryTimer, query.readCursorTimer);
-						if (_conf.outputCurosrNetworkAndDeserializationTimer) tGroupOutput.SetCursorNetworkAndDeserialization(query.cursorNetworkAndDeserializationTimer);
-						if (_conf.outputIQL) tGroupOutput.SetInternalQueryLog(query.internalQueryLog);
-						if (_conf.outputCursorSizeBreakdown) tGroupOutput.SetCursorSizeBreakdown(query.cursorSizeBreakdown);
-						if (_conf.dumpIQL) tGroupOutput.DumpInternalQueryLog(tGroup.name, query.internalQueryLog, i, query.processingTime);
-						if (_conf.dumpIQA) tGroupOutput.DumpInternalQueryAnalysis(tGroup.name, query.internalQueryAnalysis, i, query.processingTime);
+						tGroupOutput.SetSuccess(query);
+						if (!tGroupOutput.SetInfo(query, dParams)) tGroupOutput.SetParsingError();
+						if (_conf.outputSQLQuery)
+							if(!tGroupOutput.SetSQL(query)) tGroupOutput.SetParsingError();
+						if (_conf.outputClientTimers) 
+							if(!tGroupOutput.SetClientTimers(query)) tGroupOutput.SetParsingError();
+						//perform this part only if query successfully executed
+                        if (tGroupOutput.querySuccess)
+                        {
+							if (_conf.outputQueryTimers)
+								if (!tGroupOutput.SetQueryTimers(query)) tGroupOutput.SetParsingError();
+							if (_conf.outputCurosrNetworkAndDeserializationTimer) 
+								if(!tGroupOutput.SetCursorNetworkAndDeserialization(query)) tGroupOutput.SetParsingError();
+							if (_conf.outputIQL) 
+								if(!tGroupOutput.SetInternalQueryLog(query)) tGroupOutput.SetParsingError();
+							if (_conf.outputCursorSizeBreakdown) 
+								if(!tGroupOutput.SetCursorSizeBreakdown(query)) tGroupOutput.SetParsingError();
+							if (_conf.dumpIQL)
+								if (!tGroupOutput.DumpInternalQueryLog(tGroup.name, threadGroupIteration, query)) tGroupOutput.SetDumpError();
+							if (_conf.dumpIQA) 
+								if(!tGroupOutput.DumpInternalQueryAnalysis(tGroup.name, threadGroupIteration, query)) tGroupOutput.SetDumpError();
+						}
 					}
 
 					//dispose BenchmarkQuery
 					query.Dispose();
+
+					//update status
+					if (totalQueries < _updateStatusFrequency) UpdateStatus(StatusType.Execute);
+					else if(totalQueries % _updateStatusFrequency == 0) UpdateStatus(StatusType.Execute);
 				});
 
-				tGroup.stopWatch.Stop();
+				tGroup.Stop();
 				Sys.Log($"----------------------------------------------------");
 				Sys.Log($"{{{threadGroupsThreadId}}} Thread Group [{tGroup.name}] stop");
 				Sys.Log($"----------------------------------------------------");
@@ -161,15 +221,31 @@ namespace Sinequa.Plugin
 			bool bHeaders = false;
 			Stopwatch swWriteFile = new Stopwatch();
 
+			//benchmark stops, after all thread groups have been executed
+			_tEnd = DateTime.Now;
+
+			UpdateStatus(StatusType.EngineStatus);
+			//load Engine status to compare indexes status (start/end)
+			lECSEnd = EngineStatusHelper.GetEnginesStatus(CC.Current.Engines.ToList());
+			if (lECSEnd == null)
+			{
+				Sys.LogError($"All Engines must be up and running at the end of benchmark");
+				return Return.Error;
+			}
+
 			//stop PeriodicEngineActivity task
 			if (_conf.activityMonitoring) _engineActivityManager.StopPeriodicEngineActivity();
+
+			UpdateStatus(StatusType.ThreadGroupStats);
 
 			//log Thread Groups statistics
 			foreach (ThreadGroup tGroup in _conf.threadGroups.Values) tGroup.LogQueriesStats();
 
+			UpdateStatus(StatusType.EngineActivityStats);
 			//log Engine Activity statistics
-			_engineActivityManager.LogStats();
+			if (_conf.activityMonitoring) _engineActivityManager.LogStats();
 
+			UpdateStatus(StatusType.WriteOutputFiles);
 			//ouput queries csv
 			if (_conf.outputQueries)
 			{
@@ -199,16 +275,24 @@ namespace Sinequa.Plugin
 				swWriteFile.Start();
 				bHeaders = false;
 
+				Sys.Log2(200, $"output engine activity");
+
 				using (StreamWriter sw = new StreamWriter(outputEngineActivityFilePath, false, Encoding.UTF8))
 				{
 					foreach (EngineActivityItem item in _engineActivityManager.lEngineActivityItem)
 					{
+						string header = Str.Empty;
+						string row = Str.Empty;
 						if (!bHeaders)
 						{
-							sw.WriteLine(item.ToCSVHeaders(_conf.outputCSVSeparator));
+							header = item.ToCSVHeaders(_conf.outputCSVSeparator);
+							Sys.Log2(200, $"output engine activity header [{header}]");
+							sw.WriteLine(header);
 							bHeaders = true;
 						}
-						sw.WriteLine(item.ToCSV(_conf.outputCSVSeparator));
+						row = item.ToCSV(_conf.outputCSVSeparator);
+						Sys.Log2(200, $"output engine activity row [{row}]");
+						sw.WriteLine(row);
 					}
 				}
 
@@ -218,6 +302,21 @@ namespace Sinequa.Plugin
 				Sys.Log($"----------------------------------------------------");
 				swWriteFile.Reset();
 			}
+
+
+			//check indexes updates
+			int nbDocsUpdated = CheckNormalIndexesUpdate();
+			Sys.Log($"----------------------------------------------------");
+			Sys.Log($"Total number of documents added/updated (indexationtime) in normal indexes while benchamark was running [{nbDocsUpdated}]");
+			Sys.Log($"----------------------------------------------------");
+
+			//check indexes changes (deletes)
+			long nbDocsAddedDeleted = EngineStatusHelper.LogIndexesChanges(lECSStart, lECSEnd);
+			if (nbDocsAddedDeleted == -1) return Return.Error;
+			Sys.Log($"----------------------------------------------------");
+			Sys.Log($"Total number of document added/deleted (indexes document count) [{nbDocsAddedDeleted}]");
+			Sys.Log($"----------------------------------------------------");
+			
 
 			return base.OnPostExecute(execute_ok);
 		}
@@ -230,6 +329,114 @@ namespace Sinequa.Plugin
 			}
 		}
 
+		//detect if any document have been indexed or modified while benchmark ran (only on "normal" indexes)
+		//TODO engine list from outpout (broker = clients)
+		private int CheckNormalIndexesUpdate()
+		{
+			int totalChanges = 0;
+
+			foreach (CCEngine engine in _conf.lEngines)
+			{
+				string engineName = engine.FullName;
+				EngineClient client = Toolbox.EngineClientFromPool(engineName);
+
+				//get the list of "normal" indexes (Normal / NormalReplicated / NormalReplicatedQueue) and Enabled
+				List<CCIndex> lNormalIndexes = engine.Indexes.Where(x => x.IsNormalSchema && x.Enabled).ToList();
+
+				//get the engine indexes status
+				ListOf<IndexStatus> lIdxStatus = client.GetIndexesStatus();
+
+				//get only openned indexes
+				List<string> lIndexes = new List<string>();
+				foreach (CCIndex index in lNormalIndexes)
+				{
+					if (lIdxStatus.Count(x => Str.EQNC(x.Name, index.Name)) == 1) lIndexes.AddUnique(index.Name);
+				}
+
+				if(lIndexes.Count > 0)
+                {
+					string SQL =	$"SELECT distribution('collection,excludeparents=true') as distCollection" +
+									$" FROM {string.Join(",", lIndexes)}" +
+									$" WHERE indexationtime between '{_tStart.ToString("yyyy-MM:dd HH:mm:ss")}' AND '{_tEnd.ToString("yyyy-MM:dd HH:mm:ss")}'" +
+									$" COUNT 0";
+					try
+					{
+						Engine.Client.Cursor cursor = client.ExecCursor(SQL);
+
+						Sys.Log2(50, $"Check normal indexes insert/update on Engine [{engineName}] SQL [{SQL}]");
+
+						if (cursor != null)
+						{
+							if (cursor.TotalRowCount > 0)
+							{
+								Sys.Log($"Normal Indexes insert/update detected on Engine [{engineName}] total count [{cursor.TotalRowCount}]");
+								totalChanges += cursor.TotalRowCount;
+							}
+							else
+							{
+								Sys.Log2(50, $"No normal indexes insert/update detected on Engine [{engineName}]");
+							}
+						}
+
+						cursor.Close();
+					}
+					catch (Exception e)
+					{
+						Sys.LogError(e);
+					}
+				}
+				Toolbox.EngineClientToPool(client);
+			}
+			
+			return totalChanges;
+		}
+
+		public enum StatusType
+        {
+			LoadConfig,
+			EngineStatus,
+			AppInit,
+			Execute,
+			ThreadGroupStats,
+			EngineActivityStats,
+			WriteOutputFiles
+        }
+
+		private void UpdateStatus(StatusType type)
+		{
+			StringBuilder sb = new StringBuilder();
+
+			switch (type)
+            {
+				case StatusType.LoadConfig:
+					Str.Add(sb, $"Load configuration");
+					break;
+				case StatusType.EngineStatus:
+					Str.Add(sb, $"Engines and indexes status");
+					break;
+				case StatusType.AppInit:
+					Str.Add(sb, $"Init app domains");
+					break;
+				case StatusType.Execute:
+					foreach (ThreadGroup tg in conf.threadGroups.Values)
+					{
+						Str.AddWithSep(sb, $"ThreadGroup [{tg.name}] iteration [{tg.iterations}] time [{Sys.TimerGetText(tg.ExecutionTime)}]", '\n');
+					}
+					break;
+				case StatusType.ThreadGroupStats:
+					Str.Add(sb, $"Compute thread groups statistics");
+					break;
+				case StatusType.EngineActivityStats:
+					Str.Add(sb, $"Compute engines activity statistics");
+					break;
+				case StatusType.WriteOutputFiles:
+					Str.Add(sb, $"Write output files");
+					break;
+				default:
+					break;
+			}
+			Sys.Status(sb.ToString());
+		}
 	}
 
 	public class CmdConfigEngineBenchmark
@@ -279,6 +486,7 @@ namespace Sinequa.Plugin
 		public bool outputIQLHeader { get; private set; }
 		public bool outputIQLBrokering { get; private set; }
 		public bool outputIQLDistributionsCorrelations { get; private set; }
+		public bool outputIQLAcqRLk { get; private set; }
 
 		//cursor size breakdown
 		public bool outputCursorSizeBreakdown { get; private set; }
@@ -300,15 +508,16 @@ namespace Sinequa.Plugin
 		public int activityFrequency { get; private set; }
 		public bool activityDump { get; private set; }
 
-		//engine status
-		public List<EngineCustomStatus> enginesStatus { get; private set; } = new List<EngineCustomStatus>();
+		//engine Status
+		public List<EngineCustomStatus> enginesStatus { get; private set; }
 
 		public CmdConfigEngineBenchmark(EngineBenchmark engineBenchmark)
 		{
 			this._engineBenchmark = engineBenchmark;
 			this._XMLConf = engineBenchmark.Command.GetXDoc();
 			this.startTime = DateTime.Now;
-			_ctxt.Doc = new IDocImpl();
+			this._ctxt.Doc = new IDocImpl();
+			this.enginesStatus = EngineStatusHelper.GetEnginesStatus(CC.Current.Engines.ToList());
 		}
 
 		public bool LoadConfig()
@@ -392,20 +601,21 @@ namespace Sinequa.Plugin
 				string SQL = itemGridThreadGroup.Value("CMD_THREAD_GROUP_GRID_SQL");
 				if (String.IsNullOrEmpty(SQL) || String.IsNullOrWhiteSpace(SQL))
 				{
-					Sys.LogError($"Invalid configuration property: Thread group - SQL is empty");
+					Sys.LogError($"Invalid configuration property: Thread group [{name}] - SQL is empty");
 					return false;
 				}
+				SQL = Regex.Replace(SQL, @"\r\n?|\n", " ");  //remove newline with spaces
 
 				//parameter files
 				string paramCustomFileName = itemGridThreadGroup.Value("CMD_THREAD_GROUP_GRID_PARAM_CUSTON_FILE");
 				if (String.IsNullOrEmpty(paramCustomFileName) || String.IsNullOrWhiteSpace(paramCustomFileName))
 				{
-					Sys.LogError($"Invalid configuration property: Thread group - Parameter file is empty");
+					Sys.LogError($"Invalid configuration property: Thread group [{name}] - Parameter file is empty");
 					return false;
 				}
 				if (!CC.Current.FileExist("customfile", paramCustomFileName))
 				{
-					Sys.LogError($"Invalid configuration property: Thread group - Parameter file, custom file [{paramCustomFileName}] not found");
+					Sys.LogError($"Invalid configuration property: Thread group [{name}] - Parameter file, custom file [{paramCustomFileName}] not found");
 					return false;
 				}
 				CCFile paramCustomFile = CC.Current.FileGet("customfile", paramCustomFileName);
@@ -414,7 +624,7 @@ namespace Sinequa.Plugin
 				char fileSep = itemGridThreadGroup.ValueChar("CMD_THREAD_GROUP_GRID_PARAM_CUSTON_FILE_SEP", ';');
 				if (Char.IsWhiteSpace(fileSep))
 				{
-					Sys.LogError($"Invalid configuration property: Thread group - File separator cannot be a white space");
+					Sys.LogError($"Invalid configuration property: Thread group [{name}] - File separator cannot be a white space");
 					return false;
 				}
 
@@ -422,13 +632,13 @@ namespace Sinequa.Plugin
 				string paramStrategy = itemGridThreadGroup.Value("CMD_THREAD_GROUP_GRID_PARAM_STRATEGY", Str.Empty);
 				if (String.IsNullOrEmpty(paramStrategy))
 				{
-					Sys.LogError($"Invalid configuration property: Thread group - Parameter stategy is empty");
+					Sys.LogError($"Invalid configuration property: Thread group [{name}] - Parameter stategy is empty");
 					return false;
 				}
 				ParameterStrategy parameterStrategy;
 				if (!Enum.TryParse(paramStrategy, out parameterStrategy))
 				{
-					Sys.LogError($"Invalid configuration property: Thread group - Parameter stategy type [{paramStrategy}]");
+					Sys.LogError($"Invalid configuration property: Thread group [{name}] - Parameter stategy type [{paramStrategy}]");
 					return false;
 				}
 
@@ -439,7 +649,7 @@ namespace Sinequa.Plugin
 				int threadNumber = itemGridThreadGroup.ValueInt("CMD_THREAD_GROUP_GRID_THREADS_NUMBER", 5);
 				if (threadNumber <= 0)
 				{
-					Sys.LogError($"Invalid configuration property: Thread group - Thread number must be > 0");
+					Sys.LogError($"Invalid configuration property: Thread group [{name}] - Thread number must be > 0");
 					return false;
 				}
 
@@ -449,35 +659,41 @@ namespace Sinequa.Plugin
 				string threadSleep = itemGridThreadGroup.Value("CMD_THREAD_GROUP_GRID_THREADS_SLEEP", "3;10");
 				if (String.IsNullOrEmpty(threadSleep) || String.IsNullOrWhiteSpace(threadSleep))
 				{
-					Sys.LogError($"Invalid configuration property: Thread group - Thread sleep is empty");
+					Sys.LogError($"Invalid configuration property: Thread group [{name}] - Thread sleep is empty");
 					return false;
 				}
 				string sleepMin = Str.ParseToSep(threadSleep, ';');
 				string sleepMax = Str.ParseFromSep(threadSleep, ';');
 				if (!int.TryParse(sleepMin, out threadSleepMin) || !int.TryParse(sleepMax, out threadSleepMax))
 				{
-					Sys.LogError($"Invalid configuration property: Thread group - Thread sleep format must be <min;max> where min and max integers");
+					Sys.LogError($"Invalid configuration property: Thread group [{name}] - Thread sleep format must be <min;max> where min and max integers");
 					return false;
 				}
 				if (threadSleepMin > threadSleepMax)
 				{
-					Sys.LogError($"Invalid configuration property: Thread group - Thread sleep min > Thread sleep max");
+					Sys.LogError($"Invalid configuration property: Thread group [{name}] - Thread sleep min > Thread sleep max");
 					return false;
 				}
 
 				//Max execution time
 				int maxExecutionTime = itemGridThreadGroup.ValueInt("CMD_THREAD_GROUP_GRID_MAX_TIME", 60);
-				if (threadNumber <= 0)
+				if (maxExecutionTime < -1 || maxExecutionTime == 0)
 				{
-					Sys.LogError($"Invalid configuration property: Thread group -  Execution time must be > 0");
+					Sys.LogError($"Invalid configuration property: Thread group [{name}] -  Execution time must be -1 (infinite) or >0");
 					return false;
 				}
 
 				//Max iteration
 				int maxIterations = itemGridThreadGroup.ValueInt("CMD_THREAD_GROUP_GRID_MAX_ITERATION", 100);
-				if (threadNumber <= 0)
+				if (maxIterations < -1 || maxIterations == 0)
 				{
-					Sys.LogError($"Invalid configuration property: Thread group - Max iteration must be > 0");
+					Sys.LogError($"Invalid configuration property: Thread group [{name}] - Max iteration must be -1 (infinite) or >0");
+					return false;
+				}
+
+                if (maxExecutionTime == -1 && maxIterations == -1)
+                {
+					Sys.LogError($"Invalid configuration property: Thread group [{name}] - Execution time and Max iteration are both configured to -1 (infinite)");
 					return false;
 				}
 
@@ -570,7 +786,7 @@ namespace Sinequa.Plugin
 			{
 				Sys.LogError($"Invalid configuration property: Output - Folder path is empty");
 				return false;
-            }
+			}
 			//value pattern
 			_outputFolderPath = IDocHelper.GetValuePattern(_ctxt, _outputFolderPath);
 
@@ -641,6 +857,11 @@ namespace Sinequa.Plugin
 			if (!DatatagExist(dataTag)) return false;
 			outputIQLDistributionsCorrelations = _XMLConf.ValueBoo(dataTag, false);
 
+			//internal query - Indexes lock
+			dataTag = "CMD_OUTPUT_INTERNALQUERYLOG_ACQRLK";
+			if (!DatatagExist(dataTag)) return false;
+			outputIQLAcqRLk = _XMLConf.ValueBoo(dataTag, false);
+
 			//internal query - Threads count
 			dataTag = "CMD_OUTPUT_INTERNALQUERYLOG_THREADS";
 			if (!DatatagExist(dataTag)) return false;
@@ -648,7 +869,7 @@ namespace Sinequa.Plugin
 
 
 			//if any outputIQL*, outputIQL = true
-			if (outputIQLSearchRWA || outputIQLDBQuery || outputIQLHeader || outputIQLBrokering || outputIQLDistributionsCorrelations || outputIQLThreadCount)
+			if (outputIQLSearchRWA || outputIQLDBQuery || outputIQLHeader || outputIQLBrokering || outputIQLDistributionsCorrelations || outputIQLThreadCount || outputIQLAcqRLk)
 			{
 				outputIQL = true;
 			}
@@ -729,12 +950,16 @@ namespace Sinequa.Plugin
 				Sys.LogError($"Invalid configuration property: Activity Engines configuration - Engines is empty");
 				return false;
 			}
-			activitylEngines = CC.Current.Engines.CleanAliasList3(activityEngines);
-			if (activitylEngines == null || activitylEngines.Count == 0)
-			{
-				Sys.LogError($"Invalid configuration property: Activity Engines configuration - Resolve Engine aliases error");
-				return false;
-			}
+            if (activityMonitoring)
+            {
+				activitylEngines = CC.Current.Engines.CleanAliasList3(activityEngines);
+				if (activitylEngines == null || activitylEngines.Count == 0)
+				{
+					Sys.LogError($"Invalid configuration property: Activity Engines configuration - Resolve Engine aliases error");
+					return false;
+				}
+            }
+            else activitylEngines = new ListOf<CCEngine>();			
 
 			//Activity monitor frequency
 			dataTag = "CMD_ACTIVITY_FREQUENCY";
@@ -746,34 +971,10 @@ namespace Sinequa.Plugin
 			activityDump = _XMLConf.ValueBoo(dataTag, false);
 			#endregion
 
-			#region engine status
-			//load engines status for all Engines in the Sinequa Grid. In case of brokering, other Engines than the ones defined in the "engine" list can be used
-			if (!LoadEngineStatus())
-			{
-				Sys.LogError($"All Engines must be up and running in order to execute benchmark");
-				return false;
-			}
-			#endregion
-
 			Sys.Log($"Load configuration OK");
 
 			LogConfig();
 
-			return true;
-		}
-
-		private bool LoadEngineStatus()
-		{
-			foreach (CCEngine engine in CC.Current.Engines)
-			{
-				EngineCustomStatus ECS = Toolbox.GetEngineStatus(engine.FullName);
-				if (ECS == null || !ECS.IsAlive)
-				{
-					Sys.LogError($"Can't connect to Engine [{engine.FullName}]");
-					return false;
-				}
-				enginesStatus.Add(ECS);
-			}
 			return true;
 		}
 
@@ -813,6 +1014,7 @@ namespace Sinequa.Plugin
 			Sys.Log($"Output internal query log - brokering info & timer : [{this.outputIQLBrokering}]");
 			Sys.Log($"Output internal query log - distributions & correlations timers : [{this.outputIQLDistributionsCorrelations}]");
 			Sys.Log($"Output internal query log - threads count : [{this.outputIQLThreadCount}]");
+			Sys.Log($"Output internal query log - AcqRLk timers : [{this.outputIQLAcqRLk}]");
 			Sys.Log($"----------------------------------------------------");
 			Sys.Log($"Output Cursor Size Breakdown : [{this.outputCursorSizeBreakdown}]");
 			Sys.Log($"Output Cursor Size empty columns : [{this.outputCursorSizeEmptyColumns}]");
@@ -832,10 +1034,6 @@ namespace Sinequa.Plugin
 				Sys.Log($"Frequency : [{this.activityFrequency}] ms");
 				Sys.Log($"Dump : [{this.activityDump}]");
 			}
-			Sys.Log($"----------------------------------------------------");
-			Sys.Log($"Engine(s) Status");
-			foreach (EngineCustomStatus ECS in enginesStatus) ECS.Log(true);
-			Sys.Log($"----------------------------------------------------");
 		}
 
 		private bool DatatagExist(string dataTag, bool logError = true)

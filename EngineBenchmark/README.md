@@ -34,10 +34,13 @@ It is **recommended to execute this command on a different node than your Engine
 # <a name="installation_steps"></a> Installation steps
 
 1. Copy the form override "*command.EngineBenchmark.xml*" to your *&lt;sinequa_data&gt;/form-overrides* folder
-2. Copy the "*EngineBenchmark*" plugin folder to your *&lt;sinequa_data&gt;/plugins* fodler
-3. Add a new environement variable "*SystemXmlLinqDll*" that must point to the "*System.Xml.Linq.dll*". This DLL can be found in *C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETFramework\v&lt;.NetVersion&gt;\\* folder where *&lt;.NetVersion&gt;* is the version of the .Net Framework.
-4. Perform a "refresh configuration" in "global options"
-5. Build the "EngineBenchmark" plugin 
+1. Copy the "*EngineBenchmark*" plugin folder to your *&lt;sinequa_data&gt;/plugins* fodler
+1. Add a new environement variable "*SystemXmlLinqDll*" that must point to the "*System.Xml.Linq.dll*". This DLL can be found in *C:/Windows/Microsoft.NET/Framework/&lt;.NetVersion&gt;/* folder where *&lt;.NetVersion&gt;* is the version of the .Net Framework.
+1. Perform a "refresh configuration" in "global options"
+1. Build the "EngineBenchmark" plugin.  Note: If the plugin fail to complie try the following:
+    1. Make sure the plugin "Debug build" is disabled (advanced section of the plugin)
+    1. Copy the "System.Xml.Linq.dll" into the "sinequa/website/bin" folder
+    1. Build the plugin
 
 # <a name="configuration"></a> Configuration
 
@@ -72,15 +75,15 @@ Field | Type | Default value | Required | Comment
 --- | --- | --- | --- | --- 
 Execute thread groups in parallel | Boolean | False |  | Thread groups will be executed in parallel. <br> **Note**: If checked, the number of threads executed in parallel will be the sum of "threads" defined in the "thread groups" grid.
 Name | String |  | yes | Thread group name, used in logs and output file.
-SQL Query | String |  | yes | Support only select statement. You can use variables in this field with the following syntax $myvar$ where myvar is the variable name. These variables will be replaced by values from the "parameter file".<br> **Example**: select * from myindex where text contains {SqlString("$text$")} and SearchParameters='mac=$mac$,pss=$pss$' skip 0 count 20 <br> **Note**: You can use value patterns in the SQL statment. Consider to leverage it in order to escape the text contains value. See example: text contains {SqlString("$text$")}<br> **Note**: If your SQL statement use indexes located on different Engines (replicated indexes and/or brokering), you must reference the indexes as follow: indexname@EngineHost:Port&#124;EngineHost:Port&#124;...&#124;EngineHost:Port
-Parameter file | List |  | yes | Custom file containing the variables names in the header (first line). Each subsequent line will represent a set of values. <br> **Example**: <br> fulltext;mac;pss <br> sinequa;10000;1000000 <br> enterprise search;5000;2000000 <br> **Note**: The variable name must not include $ signs and lines must have the same number of values as defined in the header. <br> **Note**: Please consider using "using cache 0" after you where clause to disable cache, especially if you have few lines in your parameter file. Otherwise queries will be cached by the Engine leading to biased results.
+SQL Query | String |  | yes | Support only select statement. You can use variables in this field with the following syntax {myvar} where myvar is the variable name. These variables will be replaced by values from the "parameter file". The curly brackets must enclose your variable name. <br> **Example**: select * from myindex where text contains {SqlString(text)} and SearchParameters='mac={mac},pss={pss}' skip 0 count 20 <br> **Note**: You can use value patterns in the SQL statment. Consider to leverage it in order to escape the text contains value. See example: text contains {SqlString(text)}<br> **Note**: If your SQL statement use indexes located on different Engines (replicated indexes and/or brokering), you must reference the indexes as follow: indexname@EngineHost:Port&#124;EngineHost:Port&#124;...&#124;EngineHost:Port
+Parameter file | List |  | yes | Custom file containing the variables names in the header (first line). Each subsequent line will represent a set of values. <br> **Example**: <br> text;mac;pss <br> sinequa;10000;1000000 <br> enterprise search;5000;2000000 <br> **Note**: The variable name must not be enclosed between curly brackets and lines must have the same number of values as defined in the header. <br> **Note**: Please consider using "using cache 0" after you where clause to disable cache, especially if you have few lines in your parameter file. Otherwise queries will be cached by the Engine leading to biased results.
 Separator | Char | ; | yes | Separator used in "Parameter file"
 Parameter strategy | List |  | yes | Strategy to read values from "Parameter file". Values are pulled by line, the strategy define what line values is used to replace the variables in the SQL. <br> Ordered: threads will read lines from top to bottom. <br> Random: read in random order <br> **Note**: If you use more than 1 thread, with "Ordered" strategy, output order will look different because threads are running in parallel.
 User ACLs | Boolean | false |  | If checked, add user ACLs in the SQL query. Will use the same strategy as defined for "Parameter strategy" (Ordered or Random). Please refer to the "Security Tab", "Users ACLs" section for more information. <br> **Note** If used, make sure you SQL query contains a where clause without ACLs.
 Threads | Integer | 5 | yes | Number of parallel threads, each thread will execute a SQL query.
 Thread sleep | String | 3;10 | yes | Define min and max boundaries in seconds before a thread execute SQL query. Values are in seconds. Syntax: min;max. <br> **NOTE**: Min & Max values are in seconds <br> **NOTE**: Sleep instruction happens after thread start but before SQL execution <br> **NOTE**: For no sleep duration, use 0;0
-Execution time | Integer | 60 | yes | Maximum execution time in seconds. Once execution time is reached, stop all threads execution.
-Max iterations | Integer |100 | yes | Maximum number of iteration (SQL queries executed). Once max iterations is reached, stop all threads execution.
+Execution time | Integer | 60 | yes | Maximum execution time in seconds. Once execution time is reached, stop all threads execution. -1 for infinite.
+Max iterations | Integer |100 | yes | Maximum number of iteration (SQL queries executed). Once max iterations is reached, stop all threads execution. -1 for infinite.
 
 **Recommendation**: 
 
@@ -156,6 +159,7 @@ Network and deserialization timer | Boolean | true | | Add the following infomat
 Parameters | Boolean | true | | Add values from parameter file used to replace variables in the SQL query to the "output" file. If your thread group use "User ACLs", the user full name will be displayed.
 Internal Query Log - Search RWA timers | Boolean | false | | Add the following infomation to the "output" file: [SearchRWA] and [FullTextSearchRWA] <br> [SearchRWA] => duration per Engine/Index. Represent the time to execute the search on the index, include [FetchingDBQuery] (search on columns) and [FullTextSearchRWA] (search on full text)<br> [FullTextSearchRWA] => time to perform the full text search on the index
 Internal Query Log - DB Query | Boolean | false | | Add the following infomation to the "output" file: [FetchingDBQuery] and [ExecuteDBQuery] durations per Engine/Index. <br> [FetchingDBQuery] => time to build the document set that validate conditions on structured columns. Include [ExecuteDBQuery] timer if any <br> [ExecuteDBQuery] => time to evaluate conditions on structured columns. <br> **NOTE**: [ExecuteDBQuery] can be empty, in that case it means the query was cached by tghe engine
+Internal Query Log - AcqRLk | Boolean | false | | Add the following infomation to the "output" file: [AcqRLk] duration per Engine/Index. <br> [AcqRLk] => lock duration before search start on the index
 Internal Query Log - Distributions & Correlations timers | Boolean | false | | Add the following infomation to the "output" file: [Distribution] and [Correlation] durations per Engine. <br> [Distribution] => time to compute the aggregation <br> [Correlation] => time to compute the aggregation
 Internal Query Log - header timers | Boolean | false | | Add the following infomation to the "output" file: [AcqMRdLk][AcqDBRdLk][NetworkNotificationToWorkerStart][MsgDeserialize][QueryProcessorParse] timers. <br> [AcqMRdLk] => time to acquire indexes existence <br>[AcqDBRdLk] =>  time to acquire main index list lock  <br> [NetworkNotificationToWorkerStart] => time from input notification (network) to worker thread assignment and processing start <br> [MsgDeserialize] => time to deserialize the input query <br>[QueryProcessorParse] => time to analyze the query (can include index access for fuzzy search)
 Internal Query Log - Brokering Info & timer | Boolean | false | | Add the following infomation to the "output" file: [Broker Engine][Client Engine(s)] and [MergeAttributes] duration. <br> [Broker Engine] => Broker is in charge of propagating the SQL query to other Engines (so called clients) if needed. Client will return their results to the broken that ultimately be incharge of merging all the results. <br> [Client Engine(s)] => List of Engines called by the 'Broker' <br> [MergeAttributes] => time to merge attributes between boker and clients
@@ -206,7 +210,7 @@ In order to make the logs more readable, thread group queries are identified wit
 
 Log line:
 ```
-2020-11-23 14:53:27 {19} Thread group [query_1][5] prepare execute SQL on engine [Engine2] with parameters [$text$]=[text];[$pss$]=[1000000];[$_user_fullname_$]=[User Name]
+2020-11-23 14:53:27 {19} Thread group [query_1][5] prepare execute SQL on engine [Engine2] with parameters [text]=[sinequa];[pss]=[1000000];[_user_fullname_]=[User Name]
 ```
 
 Can be represented as:
@@ -231,7 +235,7 @@ Brackets [] contains variables
 
 Example
 ```
-2020-11-23 13:50:43 {24} Thread group [query_1][8] prepare execute SQL on engine [Engine1] with parameters [$text$]=[sinequa];[$pss$]=[1000000];[$_user_fullname_$]=[John DOE]
+2020-11-23 13:50:43 {24} Thread group [query_1][8] prepare execute SQL on engine [Engine1] with parameters [text]=[sinequa];[pss]=[1000000];[_user_fullname_]=[John DOE]
 ```
 
 **Log level 20**: Add thread sleep time, SQL query and Engine Name used to perform the query
@@ -266,6 +270,8 @@ Example:
 2020-11-23 13:50:51 {20} Thread group [query_3][49] Skip InternalQueryLog dump, ProcessingTime [0] < Minimum query processing time to dump Internal Query Log XML [200]
 2020-11-23 13:50:36 {20} Thread group [query_3][5] Skip InternalQueryAnalysis dump, ProcessingTime [0] < Minimum query processing time to dump Internal Query Analysis XML [200]
 ```
+
+**Log level 200**: Debug mode
 
 ## <a name="logs_stats"></a> Statistics
 
@@ -442,50 +448,56 @@ If you have enabled "Internal Query Log - DistributionsCorrelations", the follow
 If you have enabled "Engine activity", the following table will be displayed
 
 ```
-2020-11-25 15:32:51 ----------------------------------------------------
-2020-11-25 15:32:51 Engine Activity Statistics
-2020-11-25 15:32:51 ----------------------------------------------------
-2020-11-25 15:32:51 -----------------------------------------------------
-2020-11-25 15:32:51 |                         |   unit| Engine1| Engine2|
-2020-11-25 15:32:51 -----------------------------------------------------
-2020-11-25 15:32:51 |Activity monitored       |       |     329|     284|
-2020-11-25 15:32:51 |Thread count             |       |      26|      26|
-2020-11-25 15:32:51 |Installed Memory         |     Gb|   31.85|   31.85|
-2020-11-25 15:32:51 |CPU User Time at start   |seconds| 152,609| 114,109|
-2020-11-25 15:32:51 |CPU User Time at end     |seconds| 248,172| 198,156|
-2020-11-25 15:32:51 |CPU User Time change     |seconds|+95562.5|+84046.9|
-2020-11-25 15:32:51 |CPU System Time at start |seconds|  27,266|  17,531|
-2020-11-25 15:32:51 |CPU System Time at end   |seconds|  36,000|  26,109|
-2020-11-25 15:32:51 |CPU System Time change   |seconds| +8734.4| +8578.1|
-2020-11-25 15:32:51 |VM Size at start         |     Gb|    1.89|    1.59|
-2020-11-25 15:32:51 |VM Size at end           |     Gb|    3.22|    2.51|
-2020-11-25 15:32:51 |VM Size change           |     Gb|   +1.33|   +0.92|
-2020-11-25 15:32:51 |VM Size min              |     Gb|    1.89|    1.59|
-2020-11-25 15:32:51 |VM Size avg              |     Gb|    2.97|    2.86|
-2020-11-25 15:32:51 |VM Size max              |     Gb|    3.69|    3.49|
-2020-11-25 15:32:51 |WS Size at start         |     Gb|    0.56|    0.44|
-2020-11-25 15:32:51 |WS Size at end           |     Gb|    1.79|    1.30|
-2020-11-25 15:32:51 |WS Size change           |     Gb|   +1.23|   +0.86|
-2020-11-25 15:32:51 |WS Size min              |     Gb|    0.56|    0.44|
-2020-11-25 15:32:51 |WS Size avg              |     Gb|    1.53|    1.60|
-2020-11-25 15:32:51 |WS Size max              |     Gb|    2.12|    2.14|
-2020-11-25 15:32:51 |Available Memory at start|     Gb|   15.76|   15.77|
-2020-11-25 15:32:51 |Available Memory at end  |     Gb|   12.26|   12.31|
-2020-11-25 15:32:51 |Available Memory change  |     Gb|    -3.5|   -3.46|
-2020-11-25 15:32:51 |Available Memory min     |     Gb|   11.13|   11.43|
-2020-11-25 15:32:51 |Available Memory avg     |     Gb|   12.07|   12.19|
-2020-11-25 15:32:51 |Available Memory max     |     Gb|   15.76|   15.77|
-2020-11-25 15:32:51 |Working Threads at start |       |     3.0|     3.0|
-2020-11-25 15:32:51 |Working Threads at end   |       |     3.0|     3.0|
-2020-11-25 15:32:51 |Working Threads change   |       |       0|       0|
-2020-11-25 15:32:51 |Working Threads min      |       |     3.0|     3.0|
-2020-11-25 15:32:51 |Working Threads avg      |       |     4.7|     3.7|
-2020-11-25 15:32:51 |Working Threads max      |       |    13.0|    11.0|
-2020-11-25 15:32:51 |Idle Threads at start    |       |    23.0|    23.0|
-2020-11-25 15:32:51 |Idle Threads at end      |       |    23.0|    23.0|
-2020-11-25 15:32:51 |Idle Threads change      |       |       0|       0|
-2020-11-25 15:32:51 |Idle Threads min         |       |    13.0|    15.0|
-2020-11-25 15:32:51 |Idle Threads avg         |       |    21.3|    22.3|
-2020-11-25 15:32:51 |Idle Threads max         |       |    23.0|    23.0|
-2020-11-25 15:32:51 -----------------------------------------------------
+2021-01-27 12:34:38 ----------------------------------------------------
+2021-01-27 12:34:38 Engine Activity Statistics
+2021-01-27 12:34:38 ----------------------------------------------------
+2021-01-27 12:34:38 ---------------------------------------------------
+2021-01-27 12:34:38 |                         |   unit|Engine1|Engine2|
+2021-01-27 12:34:38 ---------------------------------------------------
+2021-01-27 12:34:38 |Activity monitored       |       |     91|     91|
+2021-01-27 12:34:38 |Thread count             |       |     26|     26|
+2021-01-27 12:34:38 |Installed Memory         |     Gb|  31.85|  31.85|
+2021-01-27 12:34:38 ---------------------------------------------------
+2021-01-27 12:34:38 |CPU User Time at start   |seconds|104,906| 75,109|
+2021-01-27 12:34:38 |CPU User Time at end     |seconds|126,531| 76,094|
+2021-01-27 12:34:38 |CPU User Time change     |seconds| +21625| +984.4|
+2021-01-27 12:34:38 |CPU System Time at start |seconds| 26,891| 16,828|
+2021-01-27 12:34:38 |CPU System Time at end   |seconds| 29,328| 17,000|
+2021-01-27 12:34:38 |CPU System Time change   |seconds|+2437.5| +171.9|
+2021-01-27 12:34:38 ---------------------------------------------------
+2021-01-27 12:34:38 |VM Size at start         |     Gb|   3.78|   1.58|
+2021-01-27 12:34:38 |VM Size at end           |     Gb|   4.16|   1.53|
+2021-01-27 12:34:38 |VM Size change           |     Gb|  +0.38|  -0.06|
+2021-01-27 12:34:38 |VM Size min              |     Gb|   3.70|   1.51|
+2021-01-27 12:34:38 |VM Size avg              |     Gb|   4.01|   1.52|
+2021-01-27 12:34:38 |VM Size max              |     Gb|   4.59|   1.58|
+2021-01-27 12:34:38 ---------------------------------------------------
+2021-01-27 12:34:38 |WS Size at start         |     Gb|   1.62|   0.27|
+2021-01-27 12:34:38 |WS Size at end           |     Gb|   1.92|   0.22|
+2021-01-27 12:34:38 |WS Size change           |     Gb|   +0.3|  -0.05|
+2021-01-27 12:34:38 |WS Size min              |     Gb|   1.57|   0.21|
+2021-01-27 12:34:38 |WS Size avg              |     Gb|   1.82|   0.22|
+2021-01-27 12:34:38 |WS Size max              |     Gb|   2.28|   0.27|
+2021-01-27 12:34:38 ---------------------------------------------------
+2021-01-27 12:34:38 |Available Memory at start|     Gb|  13.33|  13.33|
+2021-01-27 12:34:38 |Available Memory at end  |     Gb|  13.79|  13.76|
+2021-01-27 12:34:38 |Available Memory change  |     Gb|  +0.46|  +0.42|
+2021-01-27 12:34:38 |Available Memory min     |     Gb|  12.02|  12.02|
+2021-01-27 12:34:38 |Available Memory avg     |     Gb|  13.01|  13.01|
+2021-01-27 12:34:38 |Available Memory max     |     Gb|  14.14|  14.14|
+2021-01-27 12:34:38 ---------------------------------------------------
+2021-01-27 12:34:38 |Working Threads at start |       |    3.0|    3.0|
+2021-01-27 12:34:38 |Working Threads at end   |       |    3.0|    3.0|
+2021-01-27 12:34:38 |Working Threads change   |       |      0|      0|
+2021-01-27 12:34:38 |Working Threads min      |       |    3.0|    3.0|
+2021-01-27 12:34:38 |Working Threads avg      |       |    3.2|    3.0|
+2021-01-27 12:34:38 |Working Threads max      |       |    5.0|    3.0|
+2021-01-27 12:34:38 ---------------------------------------------------
+2021-01-27 12:34:38 |Idle Threads at start    |       |   23.0|   23.0|
+2021-01-27 12:34:38 |Idle Threads at end      |       |   23.0|   23.0|
+2021-01-27 12:34:38 |Idle Threads change      |       |      0|      0|
+2021-01-27 12:34:38 |Idle Threads min         |       |   21.0|   23.0|
+2021-01-27 12:34:38 |Idle Threads avg         |       |   22.8|   23.0|
+2021-01-27 12:34:38 |Idle Threads max         |       |   23.0|   23.0|
+2021-01-27 12:34:38 ---------------------------------------------------
 ```

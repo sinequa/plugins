@@ -7,10 +7,12 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace Sinequa.Plugin
 {
-    public class ThreadGroup
+	public class ThreadGroup
 	{
 		private CmdConfigEngineBenchmark _conf;
 		private EngineBenchmark _engineBenchmarkCommand;
@@ -50,27 +52,87 @@ namespace Sinequa.Plugin
 		private int _paramIndex = 0;
 		private int _userACLsIndex = 0;
 		private Random _rand = new Random();
-		private ConcurrentDictionary<int, ThreadGroupOutput> _dOUtput = new ConcurrentDictionary<int, ThreadGroupOutput>();
+		private ConcurrentDictionary<int, ThreadGroupOutput> _dOutput = new ConcurrentDictionary<int, ThreadGroupOutput>();
+
+		private Stopwatch _stopWatch = new Stopwatch();
+		public long ExecutionTime
+		{
+			get { return _stopWatch.ElapsedMilliseconds; }
+		}
+		private int _iterations = 0;
+		public int iterations
+		{
+			get { return _iterations; }
+		}
+		public int IncrementIterations()
+		{
+			return Interlocked.Increment(ref this._iterations);
+		}
+
+		public int outputCount
+		{
+			get { return _dOutput.Count; }
+		}
 		private ListOf<CCEngine> _Engines = new ListOf<CCEngine>();
 		private ConcurrentDictionary<CCPrincipal, string> _dUsersACL = new ConcurrentDictionary<CCPrincipal, string>();
 		private IDocContext _ctxt = new IDocContext();
 
-		public int nbIterration = 0;
-		public Stopwatch stopWatch = new Stopwatch();
+		#region state
+
+		private ThreadGroupState _state;
+		public ThreadGroupState state
+		{
+			get { return _state; }
+			set
+			{
+				lock (syncLock)
+				{
+					_state = value;
+				}
+			}
+		}
+
+		public enum ThreadGroupState
+		{
+			none,           //not initialized yet
+			error,          //init error
+			waiting,        //waiting to be executed
+			running,        //execution is running
+			done            //execution is over
+		}
+
+		#endregion
+
+		//store InternalQueryLog data (engines, indexes, distributions, correlations)
+		#region InternalQueryLog dictionnaries
+
+		//dictionnary of distribution or correlation aliases. Used to resolve multiple distributions / correlations on same column
+		//key => distribution(...)
+		//value => count_MatchingPartnames
+		public Dictionary<string, string> dDistCorrelAliases { get; private set; }
 
 		//dictionaries to hold engines indexes from 
 		//dictionary of engine => list indexes (SearchRWA / FullTextSearchRWA / ExecuteDBQuery / Fetching DBQuery)
-		public ConcurrentDictionary<string, List<string>> dEngineIndexes = new ConcurrentDictionary<string, List<string>>();
+		public ConcurrentDictionary<string, List<string>> dEngineIndexes;
+		//dictionary of engine => list distribitions (distribution)
+		public ConcurrentDictionary<string, List<string>> dEngineDistributions;
+		//dictionary of engine => list correlations (correlation)
+		public ConcurrentDictionary<string, List<string>> dEngineCorrelations;
+
+		#endregion
+
+		//cache to optimize stats generation
+		private Dictionary<MultiStatProperty, List<(string engine, string elem, double duration)>> _multiStatPropertyCache = new Dictionary<MultiStatProperty, List<(string engine, string elem, double duration)>>();
+
 		public List<(string index, string engine)> lSortedEngineIndex
-        {
-            get
-            {
+		{
+			get
+			{
 				if (dEngineIndexes == null) return new List<(string elem, string engine)>();
 				return GetSortedEngineList(dEngineIndexes);
 			}
-        }
-		//dictionary of engine => list distribitions (distribution)
-		public ConcurrentDictionary<string, List<string>> dEngineDistributions = new ConcurrentDictionary<string, List<string>>();
+		}
+
 		public List<(string distribution, string engine)> lSortedEngineDistribution
 		{
 			get
@@ -79,8 +141,7 @@ namespace Sinequa.Plugin
 				return GetSortedEngineList(dEngineDistributions);
 			}
 		}
-		//dictionary of engine => list correlations (correlation)
-		public ConcurrentDictionary<string, List<string>> dEngineCorrelations = new ConcurrentDictionary<string, List<string>>();
+
 		public List<(string correlation, string engine)> lSortedEngineCorrelation
 		{
 			get
@@ -90,13 +151,16 @@ namespace Sinequa.Plugin
 			}
 		}
 
-		public List<ThreadGroupOutput> outputs
+		public List<ThreadGroupOutput> sortedOutputs
 		{
 			get
 			{
-				return _dOUtput.Values.OrderBy(x => x.id).ToList();
+				return _dOutput.Values.OrderBy(x => x.iteration).ToList();
 			}
 		}
+
+		//enum used for stats generation
+		#region stats enum
 
 		public enum SimpleStatProperty
 		{
@@ -114,13 +178,14 @@ namespace Sinequa.Plugin
 		}
 
 		public enum MultiStatProperty
-        {
+		{
 			IQLSearchRWA,
 			IQLFullTextSearchRWA,
 			IQLExecuteDBQuery,
 			IQLFetchingDBQuery,
 			IQLDistribution,
-			IQLCorrelation
+			IQLCorrelation,
+			IQLAcqRLk
 		}
 
 		public enum StatType
@@ -130,6 +195,8 @@ namespace Sinequa.Plugin
 			avg,
 			stddev
 		}
+
+		#endregion
 
 		public ThreadGroup(string name, string sql, CCFile paramCustomFile, char fileSep, ParameterStrategy paramStrategy,
 			bool usersACL, int threadNumber, int threadSleepMin, int threadSleepMax, int maxExecutionTime, int maxIteration)
@@ -143,8 +210,9 @@ namespace Sinequa.Plugin
 			this.threadNumber = threadNumber;
 			this.threadSleepMin = threadSleepMin * 1000;    //seconds to milliseconds
 			this.threadSleepMax = threadSleepMax * 1000;    //seconds to milliseconds
-			this.maxExecutionTime = maxExecutionTime * 1000;    //seconds to milliseconds
+			this.maxExecutionTime = maxExecutionTime == -1 ? maxExecutionTime : maxExecutionTime * 1000;    //seconds to milliseconds
 			this.maxIteration = maxIteration;
+			this.state = ThreadGroupState.none;
 			this._ctxt.Doc = new IDocImpl();
 		}
 
@@ -157,7 +225,8 @@ namespace Sinequa.Plugin
 				dEngineIndexes.TryGetValue(engine, out List<string> lIndexes);
 				foreach (string index in lIndexes) l.Add((index, engine));
 			}
-			return l.OrderBy(x => x.elem).ThenBy(x => x.engine).ToList(); ;
+			l = l.OrderBy(x => x.elem).ThenBy(x => x.engine).ToList(); ;
+			return l;
 		}
 
 
@@ -172,8 +241,10 @@ namespace Sinequa.Plugin
 			Sys.Log($"Thread Number = [{this.threadNumber}]");
 			Sys.Log($"Thread Sleep Min = [{this.threadSleepMin}] ms");
 			Sys.Log($"Thread Sleep Max = [{this.threadSleepMax}] ms");
-			Sys.Log($"Max Execution Time = [{this.maxExecutionTime}] ms");
-			Sys.Log($"Max Iteration = [{this.maxIteration}]");
+			if (this.maxExecutionTime == -1) Sys.Log($"Max Execution Time = [{this.maxExecutionTime}] (infinite)");
+			else Sys.Log($"Max Execution Time = [{this.maxExecutionTime}] ms");
+			if (this.maxIteration == -1) Sys.Log($"Max Iteration = [{this.maxIteration}] (infinite)");
+			else Sys.Log($"Max Iteration = [{this.maxIteration}]");
 		}
 
 		public bool Init(EngineBenchmark engineBenchmarkCommand, CmdConfigEngineBenchmark conf)
@@ -190,6 +261,7 @@ namespace Sinequa.Plugin
 			if (!GetEnginesFromStrategy(_conf.engineStategy, _conf.lEngines))
 			{
 				configLoadError = true;
+				state = ThreadGroupState.error;
 				return false;
 			}
 			if (addUserACLs)
@@ -197,27 +269,54 @@ namespace Sinequa.Plugin
 				if (!LoadUsersACLs(_conf.domain, _conf.lUsers))
 				{
 					configLoadError = true;
+					state = ThreadGroupState.error;
 					return false;
 				}
 			}
+			if (!GetDistributionsCorrelationsFromQuery())
+			{
+				configLoadError = true;
+				state = ThreadGroupState.error;
+				return false;
+			}
+
+			state = ThreadGroupState.waiting;
 			return true;
 		}
 
 		private void Reset()
 		{
 			this.configLoadError = false;
-			this.nbIterration = 0;
-			this.stopWatch.Stop();
-			this.stopWatch.Reset();
+			this._iterations = 0;
+			this._stopWatch.Stop();
+			this._stopWatch.Reset();
+			this.state = ThreadGroupState.none;
+
+			this.dEngineIndexes = new ConcurrentDictionary<string, List<string>>();
+			this.dEngineDistributions = new ConcurrentDictionary<string, List<string>>();
+			this.dEngineCorrelations = new ConcurrentDictionary<string, List<string>>();
+			this.dDistCorrelAliases = new Dictionary<string, string>();
 
 			this._paramsLoaded = false;
 			this._parameters.Clear();
 			this._paramIndex = 0;
 			this._userACLsIndex = 0;
 			this._rand = new Random();
-			this._dOUtput.Clear();
+			this._dOutput.Clear();
 			this._Engines = new ListOf<CCEngine>();
 			this._dUsersACL.Clear();
+		}
+
+		public void Start()
+		{
+			_stopWatch.Start();
+			state = ThreadGroupState.running;
+		}
+
+		public void Stop()
+		{
+			_stopWatch.Stop();
+			state = ThreadGroupState.done;
 		}
 
 		private bool LoadParameters()
@@ -317,6 +416,48 @@ namespace Sinequa.Plugin
 			return true;
 		}
 
+		private bool GetDistributionsCorrelationsFromQuery()
+		{
+			string pattern = @"(distribution|correlation)\s*\(\s*\'(.*?)\'\s*\)\s*as\s*(.*?)[,|\s]";
+			//group1 => distribution|correlation
+			//group2 => options => options btw (' and ')
+			//group3 => alias
+
+			RegexOptions options = RegexOptions.Singleline;
+
+			if (_conf.outputIQLDistributionsCorrelations)
+			{
+				string select = Str.ParseFromTo(sql, $"SELECT ", $" FROM ", true);
+				if (string.IsNullOrEmpty(select))
+				{
+					Sys.LogError($"Cannot parse SQL expression. SELECT ... FROM ... not detected");
+					return false;
+				}
+				select += " ";  //add space at the end to ensure regex match
+
+				foreach (Match match in Regex.Matches(select, pattern, options))
+				{
+					if (match.Groups.Count == 4 && !String.IsNullOrEmpty(match.Groups[1].Value) && !String.IsNullOrEmpty(match.Groups[2].Value) && !String.IsNullOrEmpty(match.Groups[3].Value))
+					{
+						string type = match.Groups[1].Value;
+						//clean exp to match InternalQueryLog format: distribution|correlation(options)
+						string opts = Str.Replace(match.Groups[2].Value, " ", "");
+						string alias = match.Groups[3].Value;
+
+						string exp = $"{type}({opts})";
+
+						dDistCorrelAliases.Add(exp, alias);
+					}
+					else
+					{
+						Sys.LogError($"Cannot parse expression [{match.Value}] in [{select}]");
+						return false;
+					}
+				}
+			}
+			return true;
+		}
+
 		private bool EngineIsAlive(string engineName)
 		{
 			EngineCustomStatus ECS = Toolbox.GetEngineStatus(engineName);
@@ -329,11 +470,12 @@ namespace Sinequa.Plugin
 			string sqlWithParams = sql;
 			dParams = GetNextParameters();
 
+			//parameters / variables
+			ParameterSet paramSet = new ParameterSet();
 			foreach (string paramName in dParams.Keys)
 			{
-				string token = "$" + paramName + "$";
 				dParams.TryGetValue(paramName, out string value);
-				sqlWithParams = Str.Replace(sqlWithParams, token, value);
+				paramSet.SetValue(paramName, value);
 			}
 
 			//add user ACL
@@ -351,16 +493,24 @@ namespace Sinequa.Plugin
 			}
 
 			//add internalquerylog
-			if (_conf.outputIQL)
+			if (_conf.outputIQL || _conf.dumpIQL)
 			{
 				if (!sqlWithParams.Contains("internalquerylog"))
 				{
 					sqlWithParams = Str.Replace(sqlWithParams, "select", "select internalquerylog,");
 				}
 			}
+			//add internalqueryanalysis
+			if (_conf.dumpIQA)
+            {
+				if (!sqlWithParams.Contains("internalqueryanalysis"))
+				{
+					sqlWithParams = Str.Replace(sqlWithParams, "select", "select internalqueryanalysis,");
+				}
+			}
 
 			//evaluate value patterns
-			sqlWithParams = IDocHelper.GetValuePattern(_ctxt, sqlWithParams);
+			sqlWithParams = IDocHelper.GetValuePattern(_ctxt, paramSet, sqlWithParams);
 
 			return sqlWithParams;
 		}
@@ -429,7 +579,7 @@ namespace Sinequa.Plugin
 		public bool AddOutput(int id, int threadId, DateTime start, DateTime end, out ThreadGroupOutput tGroupOUtput)
 		{
 			tGroupOUtput = new ThreadGroupOutput(this, id, threadId, start, end);
-			if (!_dOUtput.TryAdd(id, tGroupOUtput))
+			if (!_dOutput.TryAdd(id, tGroupOUtput))
 			{
 				tGroupOUtput = null;
 				return false;
@@ -438,24 +588,32 @@ namespace Sinequa.Plugin
 		}
 
 		public void WriteQueryOutpout()
-        {
+		{
 			Stopwatch swWriteFile = new Stopwatch();
 
 			string outputQueryFilePath = Toolbox.GetOutputFilePath(conf.outputFolderPath, $"{name}_Queries", "csv");
 			swWriteFile.Start();
 			bool bHeaders = false;
 
+			Sys.Log2(200, $"WriteQueryOutpout [{name}]");
+
 			using (StreamWriter sw = new StreamWriter(outputQueryFilePath, false, Encoding.UTF8))
 			{
-				foreach (ThreadGroupOutput tGoupOutout in outputs)
+				string header = Str.Empty;
+				string row = Str.Empty;
+				foreach (ThreadGroupOutput tGoupOutout in sortedOutputs)
 				{
 					if (!bHeaders)
 					{
-						sw.WriteLine(tGoupOutout.QueryOutputCSVHeader(conf.outputCSVSeparator));
+						header = tGoupOutout.QueryOutputCSVHeader(conf.outputCSVSeparator);
+						Sys.Log2(200, $"WriteQueryOutpout [{name}] header [{header}]");
+						sw.WriteLine(header);
 						bHeaders = true;
 					}
-					sw.WriteLine(tGoupOutout.QueryOutputCSVRow(conf.outputCSVSeparator));
-				}	
+					row = tGoupOutout.QueryOutputCSVRow(conf.outputCSVSeparator);
+					Sys.Log2(200, $"WriteQueryOutpout [{name}] row [{row}]");
+					sw.WriteLine(row);
+				}
 			}
 
 			swWriteFile.Stop();
@@ -464,23 +622,31 @@ namespace Sinequa.Plugin
 		}
 
 		public void WriteCursorSizeOutput()
-        {
+		{
 			Stopwatch swWriteFile = new Stopwatch();
 
 			string outputCursorSizeFilePath = Toolbox.GetOutputFilePath(conf.outputFolderPath, $"{name}_CursorSize", "csv");
 			swWriteFile.Start();
 			bool bHeaders = false;
 
+			Sys.Log2(200, $"WriteCursorSizeOutput [{name}]");
+
 			using (StreamWriter sw = new StreamWriter(outputCursorSizeFilePath, false, Encoding.UTF8))
 			{
-				foreach (ThreadGroupOutput tGoupOutout in outputs)
+				string header = Str.Empty;
+				string row = Str.Empty;
+				foreach (ThreadGroupOutput tGoupOutout in sortedOutputs)
 				{
 					if (!bHeaders)
 					{
-						sw.WriteLine(tGoupOutout.CursorSizeCSVHeader(conf.outputCSVSeparator));
+						header = tGoupOutout.CursorSizeCSVHeader(conf.outputCSVSeparator);
+						Sys.Log2(200, $"WriteCursorSizeOutput [{name}] header [{header}]");
+						sw.WriteLine(header);
 						bHeaders = true;
 					}
-					sw.WriteLine(tGoupOutout.CursorSizeCSVRow(conf.outputCSVSeparator));
+					row = tGoupOutout.CursorSizeCSVRow(conf.outputCSVSeparator);
+					Sys.Log2(200, $"WriteCursorSizeOutput [{name}] row [{row}]");
+					sw.WriteLine(row);
 				}
 			}
 
@@ -491,10 +657,20 @@ namespace Sinequa.Plugin
 
 		public List<ThreadGroupOutput> GetOutputByStatus(bool success)
 		{
-			return _dOUtput.Where(x => x.Value.success == success).Select(x => x.Value).ToList();			
+			return _dOutput.Where(x => x.Value.querySuccess == success).Select(x => x.Value).ToList();
 		}
 
-        #region stats
+		public List<ThreadGroupOutput> GetOuputByParsingError(bool error)
+        {
+			return _dOutput.Where(x => x.Value.parsingError == error).Select(x => x.Value).ToList();
+		}
+
+		public List<ThreadGroupOutput> GetOuputByDumpError(bool error)
+		{
+			return _dOutput.Where(x => x.Value.dumpError == error).Select(x => x.Value).ToList();
+		}
+
+		#region stats
 
 		private string _statsFormatPercent = "N2";
 		private string _statsFormatMs = "N2";
@@ -508,7 +684,7 @@ namespace Sinequa.Plugin
 		{
 			List<ThreadGroupOutput> l = GetOutputByStatus(status);
 			if (l.Count == 0) return -1;
-
+			
 			if (p == SimpleStatProperty.processingTime && t == StatType.min) return l.Min(x => x.processingTime);
 			if (p == SimpleStatProperty.processingTime && t == StatType.max) return l.Max(x => x.processingTime);
 			if (p == SimpleStatProperty.processingTime && t == StatType.avg) return l.Average(x => x.processingTime);
@@ -567,34 +743,52 @@ namespace Sinequa.Plugin
 			return -1;
 		}
 
+		private List<(string engine, string elem, double duration)>  GetOutputMultiStatUsingCache(MultiStatProperty p, string engineName, string elem)
+        {
+			List<(string engine, string elem, double duration)> lFlatten = new List<(string engine, string elem, double duration)>();
+			if (_multiStatPropertyCache.ContainsKey(p))
+			{
+				lFlatten = _multiStatPropertyCache[p];
+			}
+			else
+			{
+				List<ThreadGroupOutput> l = GetOutputByStatus(true);
+				if (l.Count == 0) return null;
+				switch (p)
+				{
+					case MultiStatProperty.IQLSearchRWA: lFlatten = l.SelectMany(x => x.IQLSearchRWA).AsParallel().ToList(); break;
+					case MultiStatProperty.IQLFullTextSearchRWA: lFlatten = l.SelectMany(x => x.IQLFullTextSearchRWA).AsParallel().ToList(); break;
+					case MultiStatProperty.IQLExecuteDBQuery: lFlatten = l.SelectMany(x => x.IQLExecuteDBQuery).AsParallel().ToList(); break;
+					case MultiStatProperty.IQLFetchingDBQuery: lFlatten = l.SelectMany(x => x.IQLFetchingDBQuery).AsParallel().ToList(); break;
+					case MultiStatProperty.IQLAcqRLk: lFlatten = l.SelectMany(x => x.IQLAcqRLk).AsParallel().ToList(); break;
+					case MultiStatProperty.IQLDistribution: lFlatten = l.SelectMany(x => x.IQLDistribution).AsParallel().ToList(); break;
+					case MultiStatProperty.IQLCorrelation: lFlatten = l.SelectMany(x => x.IQLCorrelation).AsParallel().ToList(); break;
+				}
+				_multiStatPropertyCache.Add(p, lFlatten);
+			}
+
+			if (lFlatten.Count == 0) return null;
+			List<(string engine, string elem, double duration)> lFiltered = lFlatten.Where(x => Str.EQNC(x.engine, engineName) && Str.EQNC(x.elem, elem)).AsParallel().ToList();
+			if (lFiltered.Count == 0) return null;
+			return lFiltered;
+		}
+
 		//elem can be: index, distribution or correlation
-		public double GetOutputMultiStat(MultiStatProperty p, StatType t, bool status, string engineName, string elem)
+		public double GetOutputMultiStat(MultiStatProperty p, StatType t, string engineName, string elem)
 		{
-			List<ThreadGroupOutput> l = GetOutputByStatus(status);
-			if (l.Count == 0) return -1;
+			List<(string engine, string elem, double duration)> l = GetOutputMultiStatUsingCache(p, engineName, elem);
+			if (l == null) return -1;
 
-			List<(string engine, string elem, double duration)> lAggregate = new List<(string engine, string elem, double duration)>(); 
-			if (p == MultiStatProperty.IQLSearchRWA) lAggregate = l.Select(x => x.IQLSearchRWA).Aggregate((x, y) => x.Union(y).ToList()).ToList();
-			if (p == MultiStatProperty.IQLFullTextSearchRWA) lAggregate = l.Select(x => x.IQLFullTextSearchRWA).Aggregate((x, y) => x.Union(y).ToList()).ToList();
-			if (p == MultiStatProperty.IQLExecuteDBQuery) lAggregate = l.Select(x => x.IQLExecuteDBQuery).Aggregate((x, y) => x.Union(y).ToList()).ToList();
-			if (p == MultiStatProperty.IQLFetchingDBQuery) lAggregate = l.Select(x => x.IQLFetchingDBQuery).Aggregate((x, y) => x.Union(y).ToList()).ToList();
-			if (p == MultiStatProperty.IQLDistribution) lAggregate = l.Select(x => x.IQLDistribution).Aggregate((x, y) => x.Union(y).ToList()).ToList();
-			if (p == MultiStatProperty.IQLCorrelation) lAggregate = l.Select(x => x.IQLCorrelation).Aggregate((x, y) => x.Union(y).ToList()).ToList();
-
-			if (lAggregate.Count == 0) return -1;
-			List<(string engine, string elem, double duration)> lFiltered = lAggregate.Where(x => Str.EQNC(x.engine, engineName) && Str.EQNC(x.elem, elem)).ToList();
-			if (lFiltered.Count == 0) return -1;
-
-			if (t == StatType.min) return lFiltered.Min(x => x.duration);
-			if (t == StatType.max) return lFiltered.Max(x => x.duration);
-			if (t == StatType.avg) return lFiltered.Average(x => x.duration);
-			if (t == StatType.stddev) return StdDev(lFiltered.Select(x => x.duration));
+			if (t == StatType.min) return l.Min(x => x.duration);
+			if (t == StatType.max) return l.Max(x => x.duration);
+			if (t == StatType.avg) return l.Average(x => x.duration);
+			if (t == StatType.stddev) return StdDev(l.Select(x => x.duration));
 
 			return -1;
 		}
-		
+
 		private double StdDev(IEnumerable<double> values)
-        {
+		{
 			double ret = 0;
 			int count = values.Count();
 			if (count > 1)
@@ -615,57 +809,27 @@ namespace Sinequa.Plugin
 		{
 			List<ThreadGroupOutput> l = GetOutputByStatus(true);
 			if (l.Count == 0) return -1;
-			
+
 			List<double> lValues = new List<double>();
-			double maxValue = -1;
 			switch (p)
 			{
-				case SimpleStatProperty.processingTime:
-					lValues = l.OrderBy(x => x.processingTime).Select(x => x.processingTime).ToList();
-					maxValue = GetOutputSimpleStat(p, StatType.max, true);
-					break;
-				case SimpleStatProperty.cursorSize:
-					lValues = l.OrderBy(x => x.cursorSize).Select(x => x.cursorSize).ToList();
-					maxValue = GetOutputSimpleStat(p, StatType.max, true);
-					break;
-				case SimpleStatProperty.cursorSizeMB:
-					lValues = l.OrderBy(x => x.cursorSizeMB).Select(x => x.cursorSizeMB).ToList();
-					maxValue = GetOutputSimpleStat(p, StatType.max, true);
-					break;
-				case SimpleStatProperty.clientFromPool:
-					lValues = l.OrderBy(x => x.clientFromPool).Select(x => x.clientFromPool).ToList();
-					maxValue = GetOutputSimpleStat(p, StatType.max, true);
-					break;
-				case SimpleStatProperty.clientToPool:
-					lValues = l.OrderBy(x => x.clientToPool).Select(x => x.clientToPool).ToList();
-					maxValue = GetOutputSimpleStat(p, StatType.max, true);
-					break;
-				case SimpleStatProperty.rowFetchTime:
-					lValues = l.OrderBy(x => x.rowFetchTime).Select(x => x.rowFetchTime).ToList();
-					maxValue = GetOutputSimpleStat(p, StatType.max, true);
-					break;
-				case SimpleStatProperty.matchingRowCount:
-					lValues = l.OrderBy(x => x.matchingRowCount).Select(x => x.matchingRowCount).ToList();
-					maxValue = GetOutputSimpleStat(p, StatType.max, true);
-					break;
-				case SimpleStatProperty.postGroupByMatchingRowCount:
-					lValues = l.OrderBy(x => x.postGroupByMatchingRowCount).Select(x => x.postGroupByMatchingRowCount).ToList();
-					maxValue = GetOutputSimpleStat(p, StatType.max, true);
-					break;
-				case SimpleStatProperty.totalQueryTime:
-					lValues = l.OrderBy(x => x.totalQueryTime).Select(x => x.totalQueryTime).ToList();
-					maxValue = GetOutputSimpleStat(p, StatType.max, true);
-					break;
-				case SimpleStatProperty.readCursor:
-					lValues = l.OrderBy(x => x.readCursor).Select(x => x.readCursor).ToList();
-					maxValue = GetOutputSimpleStat(p, StatType.max, true);
-					break;
-				case SimpleStatProperty.curosrNetworkAndDeserialization:
-					lValues = l.OrderBy(x => x.curosrNetworkAndDeserialization).Select(x => x.curosrNetworkAndDeserialization).ToList();
-					maxValue = GetOutputSimpleStat(p, StatType.max, true);
-					break;
+				case SimpleStatProperty.processingTime: lValues = l.Select(x => x.processingTime).ToList(); break;
+				case SimpleStatProperty.cursorSize: lValues = l.Select(x => x.cursorSize).ToList(); break;
+				case SimpleStatProperty.cursorSizeMB: lValues = l.Select(x => x.cursorSizeMB).ToList(); break;
+				case SimpleStatProperty.clientFromPool: lValues = l.Select(x => x.clientFromPool).ToList(); break;
+				case SimpleStatProperty.clientToPool: lValues = l.Select(x => x.clientToPool).ToList(); break;
+				case SimpleStatProperty.rowFetchTime: lValues = l.Select(x => x.rowFetchTime).ToList(); break;
+				case SimpleStatProperty.matchingRowCount: lValues = l.Select(x => x.matchingRowCount).ToList(); break;
+				case SimpleStatProperty.postGroupByMatchingRowCount: lValues = l.Select(x => x.postGroupByMatchingRowCount).ToList(); break;
+				case SimpleStatProperty.totalQueryTime: lValues = l.Select(x => x.totalQueryTime).ToList(); break;
+				case SimpleStatProperty.readCursor: lValues = l.Select(x => x.readCursor).ToList(); break;
+				case SimpleStatProperty.curosrNetworkAndDeserialization: lValues = l.Select(x => x.curosrNetworkAndDeserialization).ToList(); break;
 				default: return -1;
 			}
+
+			List<double> lSortedValues = lValues.OrderBy(d => d).ToList();
+			double maxValue = lSortedValues.Last();
+			int lSortedValuesCount = lSortedValues.Count;
 
 			int index = (int)Math.Ceiling(percentil * lValues.Count);
 			if (index >= lValues.Count) return maxValue;
@@ -674,70 +838,69 @@ namespace Sinequa.Plugin
 
 		public double GetOutputMultiStatPercentile(MultiStatProperty p, double percentil, string engineName, string elem)
 		{
-			List<ThreadGroupOutput> l = GetOutputByStatus(true);
-			if (l.Count == 0) return -1;
+			List<(string engine, string elem, double duration)> l = GetOutputMultiStatUsingCache(p, engineName, elem);
+			if (l == null) return -1;
 
-			List<(string engine, string elem, double duration)> lAggregate = new List<(string engine, string elem, double duration)>();
-			if (p == MultiStatProperty.IQLSearchRWA) lAggregate = l.Select(x => x.IQLSearchRWA).Aggregate((x, y) => x.Union(y).ToList()).ToList();
-			if (p == MultiStatProperty.IQLFullTextSearchRWA) lAggregate = l.Select(x => x.IQLFullTextSearchRWA).Aggregate((x, y) => x.Union(y).ToList()).ToList();
-			if (p == MultiStatProperty.IQLExecuteDBQuery) lAggregate = l.Select(x => x.IQLExecuteDBQuery).Aggregate((x, y) => x.Union(y).ToList()).ToList();
-			if (p == MultiStatProperty.IQLFetchingDBQuery) lAggregate = l.Select(x => x.IQLFetchingDBQuery).Aggregate((x, y) => x.Union(y).ToList()).ToList();
-			if (p == MultiStatProperty.IQLDistribution) lAggregate = l.Select(x => x.IQLDistribution).Aggregate((x, y) => x.Union(y).ToList()).ToList();
-			if (p == MultiStatProperty.IQLCorrelation) lAggregate = l.Select(x => x.IQLCorrelation).Aggregate((x, y) => x.Union(y).ToList()).ToList();
+			List<double> lSortedValues = l.Select(x => x.duration).OrderBy(d => d).ToList();
+			double maxValue = lSortedValues.Last();
+			int lSortedValuesCount = lSortedValues.Count;
 
-			if (lAggregate.Count == 0) return -1;
-			List<(string engine, string elem, double duration)> lFiltered = lAggregate.Where(x => Str.EQNC(x.engine, engineName) && Str.EQNC(x.elem, elem)).ToList();
-			if (lFiltered.Count == 0) return -1;
-			List<double> lValues = lFiltered.OrderBy(x => x.duration).Select(x => x.duration).ToList();
-
-			double maxValue = GetOutputMultiStat(p, StatType.max, true, engineName, elem);
-
-			int index = (int)Math.Ceiling(percentil * lValues.Count);
-			if (index >= lValues.Count) return maxValue;
-			return lValues.ElementAt(index);
+			int index = (int)Math.Ceiling(percentil * lSortedValuesCount);
+			if (index >= lSortedValuesCount) return maxValue;
+			return lSortedValues.ElementAt(index);
 		}
 
 		public double GetQPS()
 		{
 			List<ThreadGroupOutput> l = GetOutputByStatus(true);
-			return ((double)(GetOutputByStatus(true).Count) / ((double)(stopWatch.ElapsedMilliseconds) / 1000));
+			return ((double)(GetOutputByStatus(true).Count) / ((double)(_stopWatch.ElapsedMilliseconds) / 1000));
 		}
 
 		public double GetPercentageSuccessQueries()
-        {
-			return ((GetOutputByStatus(true).Count() * 100) / _dOUtput.Count());
-        }
+		{
+			return ((GetOutputByStatus(true).Count() * 100) / outputCount);
+		}
 
 		public double GetPercentageFailedQueries()
-        {
-			return ((GetOutputByStatus(false).Count() * 100) / _dOUtput.Count());
+		{
+			return ((GetOutputByStatus(false).Count() * 100) / outputCount);
+		}
+
+		public double GetPercentageParsingErrorQueries()
+		{
+			return ((GetOuputByParsingError(true).Count() * 100) / outputCount);
+		}
+
+		public double GetPercentageDumpErrorQueries()
+		{
+			return ((GetOuputByDumpError(true).Count() * 100) / outputCount);
 		}
 
 		public List<(string row, string column, string value)> GetTableRowMultiStat(MultiStatProperty property, string engine, string elem, string format, bool min = true, bool avg = true, bool max = true, bool stdDev = true, bool percentil = true)
-        {
+		{
 			List<(string row, string column, string value)> tableRow = new List<(string row, string column, string value)>();
 			string propertyName = $"[{elem}] [{engine}]";
 			if (min)
 			{
-				double d = GetOutputMultiStat(property, StatType.min, true, engine, elem);
+				double d = GetOutputMultiStat(property, StatType.min, engine, elem);
 				tableRow.Add((propertyName, "MIN", d == -1 ? Str.Empty : d.ToString(format)));
 			}
 			if (avg)
 			{
-				double d = GetOutputMultiStat(property, StatType.avg, true, engine, elem);
+				double d = GetOutputMultiStat(property, StatType.avg, engine, elem);
 				tableRow.Add((propertyName, "AVG", d == -1 ? Str.Empty : d.ToString(format)));
 			}
 			if (max)
 			{
-				double d = GetOutputMultiStat(property, StatType.max, true, engine, elem);
+				double d = GetOutputMultiStat(property, StatType.max, engine, elem);
 				tableRow.Add((propertyName, "MAX", d == -1 ? Str.Empty : d.ToString(format)));
 			}
 			if (stdDev)
 			{
-				double d = GetOutputMultiStat(property, StatType.stddev, true, engine, elem);
+				double d = GetOutputMultiStat(property, StatType.stddev, engine, elem);
 				tableRow.Add((propertyName, "StdDev", d == -1 ? Str.Empty : d.ToString(format)));
 			}
-			
+
 			if (percentil)
 			{
 				foreach (double dPercentil in lPercentil)
@@ -746,17 +909,17 @@ namespace Sinequa.Plugin
 					tableRow.Add((propertyName, $"{dPercentil * 100}th", d == -1 ? Str.Empty : d.ToString(format)));
 				}
 			}
-			
+
 			return tableRow;
 		}
 
 		public List<(string row, string column, string value)> GetTableRowSimpleStat(SimpleStatProperty property, string format, bool min = true, bool avg = true, bool max = true, bool stdDev = true, bool percentil = true)
-        {
+		{
 			List<(string row, string column, string value)> tableRow = new List<(string row, string column, string value)>();
 			string propertyName = Enum.GetName(typeof(SimpleStatProperty), property);
 			if (min)
 			{
-				double d = GetOutputSimpleStat(property, StatType.min, true); 
+				double d = GetOutputSimpleStat(property, StatType.min, true);
 				tableRow.Add((propertyName, "MIN", d == -1 ? Str.Empty : d.ToString(format)));
 			}
 			if (avg)
@@ -776,8 +939,8 @@ namespace Sinequa.Plugin
 			}
 			if (percentil)
 			{
-				foreach(double dPercentil in lPercentil)
-                {
+				foreach (double dPercentil in lPercentil)
+				{
 					double d = GetOutputSimpleStatPercentile(property, dPercentil);
 					tableRow.Add((propertyName, $"{dPercentil * 100}th", d == -1 ? Str.Empty : d.ToString(format)));
 				}
@@ -791,134 +954,206 @@ namespace Sinequa.Plugin
 			swStats.Start();
 
 			Sys.Log($"----------------------------------------------------");
-			Sys.Log($"Thread Group [{name}] - Execution time [{Sys.TimerGetText(stopWatch.ElapsedMilliseconds)}]");
-			Sys.Log($"Thread Group [{name}] - Number of iterations [{_dOUtput.Count()}]");
-			Sys.Log($"Thread Group [{name}] - Number of success queries [{GetOutputByStatus(true).Count()}/{_dOUtput.Count()}] [{GetPercentageSuccessQueries().ToString(_statsFormatPercent)}%]");
-			Sys.Log($"Thread Group [{name}] - Number of failed queries [{GetOutputByStatus(false).Count()}/{_dOUtput.Count()}] [{GetPercentageFailedQueries().ToString(_statsFormatPercent)}%]");
+			Sys.Log($"Thread Group [{name}] - Execution time [{Sys.TimerGetText(_stopWatch.ElapsedMilliseconds)}]");
+			Sys.Log($"Thread Group [{name}] - Number of iterations [{outputCount}]");
+			Sys.Log($"Thread Group [{name}] - Number of success queries [{GetOutputByStatus(true).Count()}/{outputCount}] [{GetPercentageSuccessQueries().ToString(_statsFormatPercent)}%]");
+			Sys.Log($"Thread Group [{name}] - Number of failed queries [{GetOutputByStatus(false).Count()}/{outputCount}] [{GetPercentageFailedQueries().ToString(_statsFormatPercent)}%]");
+			Sys.Log($"Thread Group [{name}] - Number of parsing error queries [{GetOuputByParsingError(true).Count()}/{outputCount}] [{GetPercentageParsingErrorQueries().ToString(_statsFormatPercent)}%]");
+			Sys.Log($"Thread Group [{name}] - Number of dump error queries [{GetOuputByDumpError(true).Count()}/{outputCount}] [{GetPercentageDumpErrorQueries().ToString(_statsFormatPercent)}%]");
 			Sys.Log($"Thread Group [{name}] - QPS (Query Per Second) [{GetQPS().ToString(_statsFormatQPS)}] ");
 
 			if (conf.outputQueryTimers)
 			{
-				List<(string row, string column, string value)> lQueryTimers = new List<(string row, string column, string value)>();
+				LogTable logTableTimers = new LogTable($"[{name}]");
+				logTableTimers.SetInnerColumnSpaces(1, 1);
+
 				//totalQueryTime
-				lQueryTimers.Add(("totalQueryTime", "unit", "ms"));
-				lQueryTimers = lQueryTimers.Union(GetTableRowSimpleStat(SimpleStatProperty.totalQueryTime, _statsFormatMs)).ToList();
+				logTableTimers.AddUniqueItem("totalQueryTime", "unit", "ms");
+				logTableTimers.AddItems(GetTableRowSimpleStat(SimpleStatProperty.totalQueryTime, _statsFormatMs));
 				//processingTime
-				lQueryTimers.Add(("processingTime", "unit", "ms"));
-				lQueryTimers = lQueryTimers.Union(GetTableRowSimpleStat(SimpleStatProperty.processingTime, _statsFormatMs)).ToList();
+				logTableTimers.AddUniqueItem("processingTime", "unit", "ms");
+				logTableTimers.AddItems(GetTableRowSimpleStat(SimpleStatProperty.processingTime, _statsFormatMs));
 				//rowFetchTime
-				lQueryTimers.Add(("rowFetchTime", "unit", "ms"));
-				lQueryTimers = lQueryTimers.Union(GetTableRowSimpleStat(SimpleStatProperty.rowFetchTime, _statsFormatMs)).ToList();
+				logTableTimers.AddUniqueItem("rowFetchTime", "unit", "ms");
+				logTableTimers.AddItems(GetTableRowSimpleStat(SimpleStatProperty.rowFetchTime, _statsFormatMs));
 				//readCursor
-				lQueryTimers.Add(("readCursor", "unit", "ms"));
-				lQueryTimers = lQueryTimers.Union(GetTableRowSimpleStat(SimpleStatProperty.readCursor, _statsFormatMs)).ToList();
+				logTableTimers.AddUniqueItem("readCursor", "unit", "ms");
+				logTableTimers.AddItems(GetTableRowSimpleStat(SimpleStatProperty.readCursor, _statsFormatMs));
 				//cursorSizeMB
-				lQueryTimers.Add(("cursorSizeMB", "unit", "MB"));
-				lQueryTimers = lQueryTimers.Union(GetTableRowSimpleStat(SimpleStatProperty.cursorSizeMB, _statsFormatMB)).ToList();
+				logTableTimers.AddUniqueItem("cursorSizeMB", "unit", "MB");
+				logTableTimers.AddItems(GetTableRowSimpleStat(SimpleStatProperty.cursorSizeMB, _statsFormatMB));
 
 				if (conf.outputQueryInfo)
-                {
+				{
 					//matchingRowCount
-					lQueryTimers.Add(("matchingRowCount", "unit", "rows"));
-					lQueryTimers = lQueryTimers.Union(GetTableRowSimpleStat(SimpleStatProperty.matchingRowCount, _statsFormatCount)).ToList();
+					logTableTimers.AddUniqueItem("matchingRowCount", "unit", "rows");
+					logTableTimers.AddItems(GetTableRowSimpleStat(SimpleStatProperty.matchingRowCount, _statsFormatCount));
 					//postGroupByMatchingRowCount
-					lQueryTimers.Add(("postGroupByMatchingRowCount", "unit", "rows"));
-					lQueryTimers = lQueryTimers.Union(GetTableRowSimpleStat(SimpleStatProperty.postGroupByMatchingRowCount, _statsFormatCount)).ToList();
+					logTableTimers.AddUniqueItem("postGroupByMatchingRowCount", "unit", "rows");
+					logTableTimers.AddItems(GetTableRowSimpleStat(SimpleStatProperty.postGroupByMatchingRowCount, _statsFormatCount));
 				}
-                if (conf.outputClientTimers)
-                {
+				if (conf.outputClientTimers)
+				{
 					//clientFromPool
-					lQueryTimers.Add(("clientFromPool", "unit", "ms"));
-					lQueryTimers = lQueryTimers.Union(GetTableRowSimpleStat(SimpleStatProperty.clientFromPool, _statsFormatMs)).ToList();
+					logTableTimers.AddUniqueItem("clientFromPool", "unit", "ms");
+					logTableTimers.AddItems(GetTableRowSimpleStat(SimpleStatProperty.clientFromPool, _statsFormatMs));
 					//clientToPool
-					lQueryTimers.Add(("clientToPool", "unit", "ms"));
-					lQueryTimers = lQueryTimers.Union(GetTableRowSimpleStat(SimpleStatProperty.clientToPool, _statsFormatMs)).ToList();
+					logTableTimers.AddUniqueItem("clientToPool", "unit", "ms");
+					logTableTimers.AddItems(GetTableRowSimpleStat(SimpleStatProperty.clientToPool, _statsFormatMs));
 				}
-                if (conf.outputCurosrNetworkAndDeserializationTimer)
-                {
+				if (conf.outputCurosrNetworkAndDeserializationTimer)
+				{
 					//curosrNetworkAndDeserialization
-					lQueryTimers.Add(("curosrNetworkAndDeserialization", "unit", "ms"));
-					lQueryTimers = lQueryTimers.Union(GetTableRowSimpleStat(SimpleStatProperty.curosrNetworkAndDeserialization, _statsFormatMs)).ToList();
+					logTableTimers.AddUniqueItem("curosrNetworkAndDeserialization", "unit", "ms");
+					logTableTimers.AddItems(GetTableRowSimpleStat(SimpleStatProperty.curosrNetworkAndDeserialization, _statsFormatMs));
 				}
-				LogArray LAQueryTimers = new LogArray(lQueryTimers, $"[{name}]");
-				LAQueryTimers.Log();
+				
+				logTableTimers.SysLog();
 			}
-			
+
 			if (conf.outputIQLSearchRWA)
 			{
-				//SearchRWA
-				List<(string row, string column, string value)> lQueryIQLSearchRWATimers = new List<(string row, string column, string value)>();
-				//FullTextSearchRWA
-				List<(string row, string column, string value)> lQueryIQLFullTextSearchRWATimers = new List<(string row, string column, string value)>();
+				LogTable logTableQueryIQLSearchRWATimers = new LogTable($"[{name}] SearchRWA");
+				logTableQueryIQLSearchRWATimers.SetInnerColumnSpaces(1, 1);
+				LogTable logTableQueryIQLFullTextSearchRWATimers = new LogTable($"[{name}] FullTextSearchRWA");
+				logTableQueryIQLFullTextSearchRWATimers.SetInnerColumnSpaces(1, 1);
+
 				foreach ((string index, string engine) x in lSortedEngineIndex)
 				{
 					//SearchRWA
-					lQueryIQLSearchRWATimers.Add(($"[{x.index}] [{x.engine}]", "unit", "ms"));
-					lQueryIQLSearchRWATimers = lQueryIQLSearchRWATimers.Union(GetTableRowMultiStat(MultiStatProperty.IQLSearchRWA, x.engine, x.index, _statsFormatMs)).ToList();
+					logTableQueryIQLSearchRWATimers.AddUniqueItem($"[{x.index}] [{x.engine}]", "unit", "ms");
+					logTableQueryIQLSearchRWATimers.AddItems(GetTableRowMultiStat(MultiStatProperty.IQLSearchRWA, x.engine, x.index, _statsFormatMs));
 					//FullTextSearchRWA
-					lQueryIQLFullTextSearchRWATimers.Add(($"[{x.index}] [{x.engine}]", "unit", "ms"));
-					lQueryIQLFullTextSearchRWATimers = lQueryIQLFullTextSearchRWATimers.Union(GetTableRowMultiStat(MultiStatProperty.IQLFullTextSearchRWA, x.engine, x.index, _statsFormatMs)).ToList();
+					logTableQueryIQLFullTextSearchRWATimers.AddUniqueItem($"[{x.index}] [{x.engine}]", "unit", "ms");
+					logTableQueryIQLFullTextSearchRWATimers.AddItems(GetTableRowMultiStat(MultiStatProperty.IQLFullTextSearchRWA, x.engine, x.index, _statsFormatMs));
 				}
 				//SearchRWA
-				LogArray LAQueryIQLSearchRWATimers = new LogArray(lQueryIQLSearchRWATimers, $"[{name}] SearchRWA");
-				LAQueryIQLSearchRWATimers.Log();
+				logTableQueryIQLSearchRWATimers.SysLog();
 				//FullTextSearchRWA
-				LogArray LAQueryIQLFullTextSearchRWATimers = new LogArray(lQueryIQLFullTextSearchRWATimers, $"[{name}] FullTextSearchRWA");
-				LAQueryIQLFullTextSearchRWATimers.Log();
+				logTableQueryIQLFullTextSearchRWATimers.SysLog();
 			}
 
 			if (conf.outputIQLDBQuery)
 			{
-				//ExecuteDBQuery
-				List<(string row, string column, string value)> lQueryIQLExecuteDBQueryTimers = new List<(string row, string column, string value)>();
-				//FetchingDBQuery
-				List<(string row, string column, string value)> lQueryIQLFetchingDBQueryTimers = new List<(string row, string column, string value)>();
+				LogTable logTableQueryIQLExecuteDBQueryTimers = new LogTable($"[{name}] ExecuteDBQuery");
+				logTableQueryIQLExecuteDBQueryTimers.SetInnerColumnSpaces(1, 1);
+				LogTable logTableQueryIQLFetchingDBQueryTimers = new LogTable($"[{name}] FetchingDBQuery");
+				logTableQueryIQLFetchingDBQueryTimers.SetInnerColumnSpaces(1, 1);
+
 				foreach ((string index, string engine) x in lSortedEngineIndex)
 				{
 					//ExecuteDBQuery
-					lQueryIQLExecuteDBQueryTimers.Add(($"[{x.index}] [{x.engine}]", "unit", "ms"));
-					lQueryIQLExecuteDBQueryTimers = lQueryIQLExecuteDBQueryTimers.Union(GetTableRowMultiStat(MultiStatProperty.IQLExecuteDBQuery, x.engine, x.index, _statsFormatMs)).ToList();
+					//add count column
+					List<(string engine, string elem, double duration)> lElems = GetOutputMultiStatUsingCache(MultiStatProperty.IQLExecuteDBQuery, x.engine, x.index);
+					int elemCount = lElems == null ? 0 : lElems.Count();
+					logTableQueryIQLExecuteDBQueryTimers.AddUniqueItem($"[{x.index}] [{x.engine}]", "count", elemCount.ToString(_statsFormatCount));
+					//usual stats
+					logTableQueryIQLExecuteDBQueryTimers.AddUniqueItem($"[{x.index}] [{x.engine}]", "unit", "ms");
+					logTableQueryIQLExecuteDBQueryTimers.AddItems(GetTableRowMultiStat(MultiStatProperty.IQLExecuteDBQuery, x.engine, x.index, _statsFormatMs));
 					//FetchingDBQuery
-					lQueryIQLFetchingDBQueryTimers.Add(($"[{x.index}] [{x.engine}]", "unit", "ms"));
-					lQueryIQLFetchingDBQueryTimers = lQueryIQLFetchingDBQueryTimers.Union(GetTableRowMultiStat(MultiStatProperty.IQLFetchingDBQuery, x.engine, x.index, _statsFormatMs)).ToList();
+					logTableQueryIQLFetchingDBQueryTimers.AddUniqueItem($"[{x.index}] [{x.engine}]", "unit", "ms");
+					logTableQueryIQLFetchingDBQueryTimers.AddItems(GetTableRowMultiStat(MultiStatProperty.IQLFetchingDBQuery, x.engine, x.index, _statsFormatMs));
 				}
 				//ExecuteDBQuery
-				LogArray LAQueryIQLExecuteDBQueryTimers = new LogArray(lQueryIQLExecuteDBQueryTimers, $"[{name}] ExecuteDBQuery");
-				LAQueryIQLExecuteDBQueryTimers.Log();
+				logTableQueryIQLExecuteDBQueryTimers.SysLog();
 				//FetchingDBQuery
-				LogArray LAQueryIQLFetchingDBQueryTimers = new LogArray(lQueryIQLFetchingDBQueryTimers, $"[{name}] FetchingDBQuery");
-				LAQueryIQLFetchingDBQueryTimers.Log();
+				logTableQueryIQLFetchingDBQueryTimers.SysLog();
+			}
+
+            if (conf.outputIQLAcqRLk)
+            {
+				//AcqRLk
+				LogTable logTableQueryIQLAcqRLkTimers = new LogTable($"[{name}] AcqRLk");
+				logTableQueryIQLAcqRLkTimers.SetInnerColumnSpaces(1, 1);
+
+				foreach ((string index, string engine) x in lSortedEngineIndex)
+				{
+					logTableQueryIQLAcqRLkTimers.AddItems(GetTableRowMultiStat(MultiStatProperty.IQLAcqRLk, x.engine, x.index, _statsFormatMs));
+				}
+
+				logTableQueryIQLAcqRLkTimers.SysLog();
 			}
 
 			if (conf.outputIQLDistributionsCorrelations)
 			{
 				//Distribution
-				List<(string row, string column, string value)> lQueryIQLDistributionTimers = new List<(string row, string column, string value)>();
+				LogTable logTableQueryIQLDistributionTimers = new LogTable($"[{name}] Distribution");
+				logTableQueryIQLDistributionTimers.SetInnerColumnSpaces(1, 1);
+
 				foreach ((string dist, string engine) x in lSortedEngineDistribution)
 				{
-					lQueryIQLDistributionTimers.Add(($"[{x.dist}] [{x.engine}]", "unit", "ms"));
-					lQueryIQLDistributionTimers = lQueryIQLDistributionTimers.Union(GetTableRowMultiStat(MultiStatProperty.IQLDistribution, x.engine, x.dist, _statsFormatMs)).ToList();
+					logTableQueryIQLDistributionTimers.AddUniqueItem($"[{x.dist}] [{x.engine}]", "unit", "ms");
+					logTableQueryIQLDistributionTimers.AddItems(GetTableRowMultiStat(MultiStatProperty.IQLDistribution, x.engine, x.dist, _statsFormatMs));
 				}
-				LogArray LAQueryIQLDistributionTimers = new LogArray(lQueryIQLDistributionTimers, $"[{name}] Distribution");
-				LAQueryIQLDistributionTimers.Log();
-				
+				logTableQueryIQLDistributionTimers.SysLog();
+
 
 				//Correlation
+				LogTable logTableQueryIQLCorrelationTimers = new LogTable($"[{name}] Correlation");
+				logTableQueryIQLCorrelationTimers.SetInnerColumnSpaces(1, 1);
+
 				List<(string row, string column, string value)> lQueryIQLCorrelationTimers = new List<(string row, string column, string value)>();
 				foreach ((string correl, string engine) x in lSortedEngineCorrelation)
 				{
-					lQueryIQLCorrelationTimers.Add(($"[{x.correl}] [{x.engine}]", "unit", "ms"));
-					lQueryIQLCorrelationTimers = lQueryIQLCorrelationTimers.Union(GetTableRowMultiStat(MultiStatProperty.IQLCorrelation, x.engine, x.correl, _statsFormatMs)).ToList();
+					logTableQueryIQLCorrelationTimers.AddUniqueItem($"[{x.correl}] [{x.engine}]", "unit", "ms");
+					logTableQueryIQLCorrelationTimers.AddItems(GetTableRowMultiStat(MultiStatProperty.IQLCorrelation, x.engine, x.correl, _statsFormatMs));
 				}
-				LogArray LAQueryIQLCorrelationTimers = new LogArray(lQueryIQLCorrelationTimers, $"[{name}] Correlation");
-				LAQueryIQLCorrelationTimers.Log();
+				
+				logTableQueryIQLCorrelationTimers.SysLog();
 			}
 
 			swStats.Stop();
 			Sys.Log($"Thread Group [{name}] - Compute stats [{Sys.TimerGetText(swStats.ElapsedMilliseconds)}]");
 		}
 
-        #endregion
-    }
+		#endregion
+	}
+
+	public class ParameterSet : IDoc
+    {
+		private Dictionary<string, string> _dParams = new Dictionary<string, string>();
+
+		public string GetValue(string name)
+        {
+			if (String.IsNullOrEmpty(name))
+			{
+				throw new Exception("Key is null or empty");
+			}
+			if(_dParams.TryGetValue(name, out string value))
+            {
+				return value;
+            }
+			//variable not found, return {variable}
+			//highlight(Text,'chunk=sentence/window,count=10,context.window=3,offsets=true,separator=;,startmarker="{b}",endmarker="{nb}",remap=true,dedup=1') as extracts
+			else
+			{
+				return $"{{{name}}}";
+            }
+		}
+
+		public bool SetValue(string name, string value)
+		{
+			if (String.IsNullOrEmpty(name))
+            {
+				throw new Exception("Key is null or empty");
+			}
+			if (_dParams.ContainsKey(name)) 
+			{
+				throw new Exception("Key already exist");
+			}
+			_dParams.Add(name, value);
+			return true;
+		}
+
+		public object GetObject(string value)
+		{
+			throw new Exception("Not implemented");
+		}
+
+		public bool SetObject(string value, object obj)
+        {
+			throw new Exception("Not implemented");
+		}
+	}
 
 }

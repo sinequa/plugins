@@ -45,14 +45,16 @@
 					<DataTag>CMD_THREAD_GROUP_GRID_SQL</DataTag>
 					<CellType>Memo</CellType>
 					<Width>30%</Width>
-					<Icon><ToolTip>{Lang("Support only select statment. You can use variables in this field with the following syntax $myvar$ where myvar is the variable name. These variables will be replaced by values from the "parameter file".")}</ToolTip></Icon>
+					<Icon><ToolTip>{Lang("Support only select statment. You can use variables in this field with the following syntax {myvar} where myvar is the variable name. These variables will be replaced by values from the "parameter file". NOTE: the curly brackets must enclose your variable name. ")}</ToolTip></Icon>
 				</Col>
 				<Col>
 					<Title>{Lang("Parameter file")}</Title>
 					<DataTag>CMD_THREAD_GROUP_GRID_PARAM_CUSTON_FILE</DataTag>
-					<CellType>combo</CellType>
+					<CellType>entity</CellType>
+					<CellDataForm>file.custom</CellDataForm>
+					<CellDataType>file.custom/customfile</CellDataType>
 					<CellListName>listcustomfile</CellListName>
-					<Icon><ToolTip>{Lang("Custom file containing the variable name in the header (first line). Each subsequent line will represent a set of values. NOTE: The variables names must not include $ signs and lines must have the same number of values as defined in the header")}</ToolTip></Icon>
+					<Icon><ToolTip>{Lang("Custom file containing the variable name in the header (first line). Each subsequent line will represent a set of values.")}</ToolTip></Icon>
 				</Col>
 				<Col>
 					<Title>{Lang("Separator")}</Title>
@@ -90,13 +92,13 @@
 					<Title>{Lang("Execution time")}</Title>
 					<DataTag>CMD_THREAD_GROUP_GRID_MAX_TIME</DataTag>
 					<CellType>input</CellType>
-					<Icon><ToolTip>{Lang("Maximum execution time in seconds. Once execution time is reached, stop all threads execution. Default: 60")}</ToolTip></Icon>
+					<Icon><ToolTip>{Lang("Maximum execution time in seconds. Once execution time is reached, stop all threads execution. Default: 60. -1 for infinite")}</ToolTip></Icon>
 				</Col>
 				<Col>
 					<Title>{Lang("Max iterations")}</Title>
 					<DataTag>CMD_THREAD_GROUP_GRID_MAX_ITERATION</DataTag>
 					<CellType>input</CellType>
-					<Icon><ToolTip>{Lang("Maximun number of iterration (SQL queries executed). Once max iterations is reached, stop all threads execution. Default: 100")}</ToolTip></Icon>
+					<Icon><ToolTip>{Lang("Maximun number of iterration (SQL queries executed). Once max iterations is reached, stop all threads execution. Default: 100. -1 for infinite")}</ToolTip></Icon>
 				</Col>
 				<Col>
 					<ImageTitle>{Lang("Duplicate[fr]Dupliquer")}</ImageTitle>
@@ -242,6 +244,12 @@
 				<DataTag>CMD_OUTPUT_INTERNALQUERYLOG_QUERY_HEADER</DataTag>
 				<DefaultValue>false</DefaultValue>
 				<Icon><ToolTip>{Lang("Add the following infomation to the '&lt;ThreadGroupName&gt;_Queries.csv' file: [AcqMRdLk][AcqDBRdLk][NetworkNotificationToWorkerStart][MsgDeserialize][QueryProcessorParse] durations. Default: false")}</ToolTip></Icon>
+			</CheckBox>
+			<CheckBox>
+				<Display>{Lang("Internal Query Log - AcqRLk timers")}</Display>
+				<DataTag>CMD_OUTPUT_INTERNALQUERYLOG_ACQRLK</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Add the following infomation to the '&lt;ThreadGroupName&gt;_Queries.csv' file: [AcqRLk] duration per Engine/Index. Default: false")}</ToolTip></Icon>
 			</CheckBox>
 			<CheckBox>
 				<Display>{Lang("Internal Query Log - Brokering Info &amp; timer")}</Display>

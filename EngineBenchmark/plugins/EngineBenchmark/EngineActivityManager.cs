@@ -61,6 +61,7 @@ namespace Sinequa.Plugin
 		public void StartPeriodicEngineActivity()
 		{
 			if (isRunning) return;
+			if (_lEngines.Count == 0) return;
 
 			Sys.Log($"----------------------------------------------------");
 			Sys.Log($"Engine Activity Monitoring");
@@ -154,8 +155,8 @@ namespace Sinequa.Plugin
 			Sys.Log($"Engine Activity Statistics");
 			Sys.Log($"----------------------------------------------------");
 
-			List<(string row, string column, string value)> lEngineActivityStats = new List<(string row, string column, string value)>();
-
+			LogTable logTableActivity = new LogTable();
+			logTableActivity.SetInnerColumnSpaces(1, 1);
 
 			foreach (string engineName in lStoreEngine)
 			{
@@ -169,108 +170,125 @@ namespace Sinequa.Plugin
 
 				EngineActivityItem first = lItems.OrderBy(x => x.processNow).First();
 				EngineActivityItem last = lItems.OrderBy(x => x.processNow).Last();
-
+				
 				//activity monitored count
-				lEngineActivityStats.AddUnique(("Activity monitored", "unit", ""));
-				lEngineActivityStats.Add(("Activity monitored", $"{engineName}", lItems.Count.ToString(_statsFormatCount)));
+				logTableActivity.AddUniqueItem("Activity monitored", "unit", "");
+				logTableActivity.AddItem("Activity monitored", $"{engineName}", lItems.Count.ToString(_statsFormatCount));
 
 				//thread count
-				lEngineActivityStats.AddUnique(("Thread count", "unit", ""));
-				lEngineActivityStats.Add(("Thread count", $"{engineName}", first.threadPoolStatusThreadCount.ToString(_statsFormatCount)));
+				logTableActivity.AddUniqueItem("Thread count", "unit", "");
+				logTableActivity.AddItem("Thread count", $"{engineName}", first.threadPoolStatusThreadCount.ToString(_statsFormatCount));
 
 				//installed RAM
-				lEngineActivityStats.AddUnique(("Installed Memory", "unit", "Gb"));
-				lEngineActivityStats.Add(("Installed Memory", $"{engineName}", first.processInstalledMemoryGb.ToString(_statsFormatGb)));
+				logTableActivity.AddUniqueItem("Installed Memory", "unit", "Gb");
+				logTableActivity.AddItem("Installed Memory", $"{engineName}", first.processInstalledMemoryGb.ToString(_statsFormatGb));
+
+				//sep
+				logTableActivity.AddSeparatorAfterRow("Installed Memory");
 
 				//CPU user time
-				lEngineActivityStats.AddUnique(("CPU User Time at start", "unit", "seconds"));
-				lEngineActivityStats.Add(("CPU User Time at start", $"{engineName}", first.processCPUUserTimeMs.ToString(_statsFormatCPU)));
-				lEngineActivityStats.AddUnique(("CPU User Time at end", "unit", "seconds"));
-				lEngineActivityStats.Add(("CPU User Time at end", $"{engineName}", last.processCPUUserTimeMs.ToString(_statsFormatCPU)));
-				lEngineActivityStats.AddUnique(("CPU User Time change", "unit", "seconds"));
-				lEngineActivityStats.Add(("CPU User Time change", $"{engineName}", (last.processCPUUserTimeMs - first.processCPUUserTimeMs).ToString(_statsFormatCPUChange)));
+				logTableActivity.AddUniqueItem("CPU User Time at start", "unit", "seconds");
+				logTableActivity.AddItem("CPU User Time at start", $"{engineName}", first.processCPUUserTimeMs.ToString(_statsFormatCPU));
+				logTableActivity.AddUniqueItem("CPU User Time at end", "unit", "seconds");
+				logTableActivity.AddItem("CPU User Time at end", $"{engineName}", last.processCPUUserTimeMs.ToString(_statsFormatCPU));
+				logTableActivity.AddUniqueItem("CPU User Time change", "unit", "seconds");
+				logTableActivity.AddItem("CPU User Time change", $"{engineName}", (last.processCPUUserTimeMs - first.processCPUUserTimeMs).ToString(_statsFormatCPUChange));
 
 				//CPU system time
-				lEngineActivityStats.AddUnique(("CPU System Time at start", "unit", "seconds"));
-				lEngineActivityStats.Add(("CPU System Time at start", $"{engineName}", first.processCPUSystemTimeMs.ToString(_statsFormatCPU)));
-				lEngineActivityStats.AddUnique(("CPU System Time at end", "unit", "seconds"));
-				lEngineActivityStats.Add(("CPU System Time at end", $"{engineName}", last.processCPUSystemTimeMs.ToString(_statsFormatCPU)));
-				lEngineActivityStats.AddUnique(("CPU System Time change", "unit", "seconds"));
-				lEngineActivityStats.Add(("CPU System Time change", $"{engineName}", (last.processCPUSystemTimeMs - first.processCPUSystemTimeMs).ToString(_statsFormatCPUChange)));
+				logTableActivity.AddUniqueItem("CPU System Time at start", "unit", "seconds");
+				logTableActivity.AddItem("CPU System Time at start", $"{engineName}", first.processCPUSystemTimeMs.ToString(_statsFormatCPU));
+				logTableActivity.AddUniqueItem("CPU System Time at end", "unit", "seconds");
+				logTableActivity.AddItem("CPU System Time at end", $"{engineName}", last.processCPUSystemTimeMs.ToString(_statsFormatCPU));
+				logTableActivity.AddUniqueItem("CPU System Time change", "unit", "seconds");
+				logTableActivity.AddItem("CPU System Time change", $"{engineName}", (last.processCPUSystemTimeMs - first.processCPUSystemTimeMs).ToString(_statsFormatCPUChange));
+
+				//sep
+				logTableActivity.AddSeparatorAfterRow("CPU System Time change");
 
 				//process VM Size
-				lEngineActivityStats.AddUnique(("VM Size at start", "unit", "Gb"));
-				lEngineActivityStats.Add(("VM Size at start", $"{engineName}", first.processVMSizeGb.ToString(_statsFormatGb)));
-				lEngineActivityStats.AddUnique(("VM Size at end", "unit", "Gb"));
-				lEngineActivityStats.Add(("VM Size at end", $"{engineName}", last.processVMSizeGb.ToString(_statsFormatGb)));
-				lEngineActivityStats.AddUnique(("VM Size change", "unit", "Gb"));
-				lEngineActivityStats.Add(("VM Size change", $"{engineName}", (last.processVMSizeGb - first.processVMSizeGb).ToString(_statsFormatGbChange)));
-				lEngineActivityStats.AddUnique(("VM Size min", "unit", "Gb"));
-				lEngineActivityStats.Add(("VM Size min", $"{engineName}", lItems.Min(x => x.processVMSizeGb).ToString(_statsFormatGb)));
-				lEngineActivityStats.AddUnique(("VM Size avg", "unit", "Gb"));
-				lEngineActivityStats.Add(("VM Size avg", $"{engineName}", lItems.Average(x => x.processVMSizeGb).ToString(_statsFormatGb)));
-				lEngineActivityStats.AddUnique(("VM Size max", "unit", "Gb"));
-				lEngineActivityStats.Add(("VM Size max", $"{engineName}", lItems.Max(x => x.processVMSizeGb).ToString(_statsFormatGb)));
+				logTableActivity.AddUniqueItem("VM Size at start", "unit", "Gb");
+				logTableActivity.AddItem("VM Size at start", $"{engineName}", first.processVMSizeGb.ToString(_statsFormatGb));
+				logTableActivity.AddUniqueItem("VM Size at end", "unit", "Gb");
+				logTableActivity.AddItem("VM Size at end", $"{engineName}", last.processVMSizeGb.ToString(_statsFormatGb));
+				logTableActivity.AddUniqueItem("VM Size change", "unit", "Gb");
+				logTableActivity.AddItem("VM Size change", $"{engineName}", (last.processVMSizeGb - first.processVMSizeGb).ToString(_statsFormatGbChange));
+				logTableActivity.AddUniqueItem("VM Size min", "unit", "Gb");
+				logTableActivity.AddItem("VM Size min", $"{engineName}", lItems.Min(x => x.processVMSizeGb).ToString(_statsFormatGb));
+				logTableActivity.AddUniqueItem("VM Size avg", "unit", "Gb");
+				logTableActivity.AddItem("VM Size avg", $"{engineName}", lItems.Average(x => x.processVMSizeGb).ToString(_statsFormatGb));
+				logTableActivity.AddUniqueItem("VM Size max", "unit", "Gb");
+				logTableActivity.AddItem("VM Size max", $"{engineName}", lItems.Max(x => x.processVMSizeGb).ToString(_statsFormatGb));
+
+				//sep
+				logTableActivity.AddSeparatorAfterRow("VM Size max");
 
 				//process WS Size
-				lEngineActivityStats.AddUnique(("WS Size at start", "unit", "Gb"));
-				lEngineActivityStats.Add(("WS Size at start", $"{engineName}", first.processWSSizeGb.ToString(_statsFormatGb)));
-				lEngineActivityStats.AddUnique(("WS Size at end", "unit", "Gb"));
-				lEngineActivityStats.Add(("WS Size at end", $"{engineName}", last.processWSSizeGb.ToString(_statsFormatGb)));
-				lEngineActivityStats.AddUnique(("WS Size change", "unit", "Gb"));
-				lEngineActivityStats.Add(("WS Size change", $"{engineName}", (last.processWSSizeGb - first.processWSSizeGb).ToString(_statsFormatGbChange)));
-				lEngineActivityStats.AddUnique(("WS Size min", "unit", "Gb"));
-				lEngineActivityStats.Add(("WS Size min", $"{engineName}", lItems.Min(x => x.processWSSizeGb).ToString(_statsFormatGb)));
-				lEngineActivityStats.AddUnique(("WS Size avg", "unit", "Gb"));
-				lEngineActivityStats.Add(("WS Size avg", $"{engineName}", lItems.Average(x => x.processWSSizeGb).ToString(_statsFormatGb)));
-				lEngineActivityStats.AddUnique(("WS Size max", "unit", "Gb"));
-				lEngineActivityStats.Add(("WS Size max", $"{engineName}", lItems.Max(x => x.processWSSizeGb).ToString(_statsFormatGb)));
+				logTableActivity.AddUniqueItem("WS Size at start", "unit", "Gb");
+				logTableActivity.AddItem("WS Size at start", $"{engineName}", first.processWSSizeGb.ToString(_statsFormatGb));
+				logTableActivity.AddUniqueItem("WS Size at end", "unit", "Gb");
+				logTableActivity.AddItem("WS Size at end", $"{engineName}", last.processWSSizeGb.ToString(_statsFormatGb));
+				logTableActivity.AddUniqueItem("WS Size change", "unit", "Gb");
+				logTableActivity.AddItem("WS Size change", $"{engineName}", (last.processWSSizeGb - first.processWSSizeGb).ToString(_statsFormatGbChange));
+				logTableActivity.AddUniqueItem("WS Size min", "unit", "Gb");
+				logTableActivity.AddItem("WS Size min", $"{engineName}", lItems.Min(x => x.processWSSizeGb).ToString(_statsFormatGb));
+				logTableActivity.AddUniqueItem("WS Size avg", "unit", "Gb");
+				logTableActivity.AddItem("WS Size avg", $"{engineName}", lItems.Average(x => x.processWSSizeGb).ToString(_statsFormatGb));
+				logTableActivity.AddUniqueItem("WS Size max", "unit", "Gb");
+				logTableActivity.AddItem("WS Size max", $"{engineName}", lItems.Max(x => x.processWSSizeGb).ToString(_statsFormatGb));
+
+				//sep
+				logTableActivity.AddSeparatorAfterRow("WS Size max");
 
 				//Available Memory
-				lEngineActivityStats.AddUnique(("Available Memory at start", "unit", "Gb"));
-				lEngineActivityStats.Add(("Available Memory at start", $"{engineName}", first.processAvailableMemoryGb.ToString(_statsFormatGb)));
-				lEngineActivityStats.AddUnique(("Available Memory at end", "unit", "Gb"));
-				lEngineActivityStats.Add(("Available Memory at end", $"{engineName}", last.processAvailableMemoryGb.ToString(_statsFormatGb)));
-				lEngineActivityStats.AddUnique(("Available Memory change", "unit", "Gb"));
-				lEngineActivityStats.Add(("Available Memory change", $"{engineName}", (last.processAvailableMemoryGb - first.processAvailableMemoryGb).ToString(_statsFormatGbChange)));
-				lEngineActivityStats.AddUnique(("Available Memory min", "unit", "Gb"));
-				lEngineActivityStats.Add(("Available Memory min", $"{engineName}", lItems.Min(x => x.processAvailableMemoryGb).ToString(_statsFormatGb)));
-				lEngineActivityStats.AddUnique(("Available Memory avg", "unit", "Gb"));
-				lEngineActivityStats.Add(("Available Memory avg", $"{engineName}", lItems.Average(x => x.processAvailableMemoryGb).ToString(_statsFormatGb)));
-				lEngineActivityStats.AddUnique(("Available Memory max", "unit", "Gb"));
-				lEngineActivityStats.Add(("Available Memory max", $"{engineName}", lItems.Max(x => x.processAvailableMemoryGb).ToString(_statsFormatGb)));
+				logTableActivity.AddUniqueItem("Available Memory at start", "unit", "Gb");
+				logTableActivity.AddItem("Available Memory at start", $"{engineName}", first.processAvailableMemoryGb.ToString(_statsFormatGb));
+				logTableActivity.AddUniqueItem("Available Memory at end", "unit", "Gb");
+				logTableActivity.AddItem("Available Memory at end", $"{engineName}", last.processAvailableMemoryGb.ToString(_statsFormatGb));
+				logTableActivity.AddUniqueItem("Available Memory change", "unit", "Gb");
+				logTableActivity.AddItem("Available Memory change", $"{engineName}", (last.processAvailableMemoryGb - first.processAvailableMemoryGb).ToString(_statsFormatGbChange));
+				logTableActivity.AddUniqueItem("Available Memory min", "unit", "Gb");
+				logTableActivity.AddItem("Available Memory min", $"{engineName}", lItems.Min(x => x.processAvailableMemoryGb).ToString(_statsFormatGb));
+				logTableActivity.AddUniqueItem("Available Memory avg", "unit", "Gb");
+				logTableActivity.AddItem("Available Memory avg", $"{engineName}", lItems.Average(x => x.processAvailableMemoryGb).ToString(_statsFormatGb));
+				logTableActivity.AddUniqueItem("Available Memory max", "unit", "Gb");
+				logTableActivity.AddItem("Available Memory max", $"{engineName}", lItems.Max(x => x.processAvailableMemoryGb).ToString(_statsFormatGb));
+
+				//sep
+				logTableActivity.AddSeparatorAfterRow("Available Memory max");
 
 				//Working threads
-				lEngineActivityStats.AddUnique(("Working Threads at start", "unit", ""));
-				lEngineActivityStats.Add(("Working Threads at start", $"{engineName}", first.threadPoolStatusWorkingThreads.ToString(_statsFormatThreads)));
-				lEngineActivityStats.AddUnique(("Working Threads at end", "unit", ""));
-				lEngineActivityStats.Add(("Working Threads at end", $"{engineName}", last.threadPoolStatusWorkingThreads.ToString(_statsFormatThreads)));
-				lEngineActivityStats.AddUnique(("Working Threads change", "unit", ""));
-				lEngineActivityStats.Add(("Working Threads change", $"{engineName}", (last.threadPoolStatusWorkingThreads - first.threadPoolStatusWorkingThreads).ToString(_statsFormatThreadsChange)));
-				lEngineActivityStats.AddUnique(("Working Threads min", "unit", ""));
-				lEngineActivityStats.Add(("Working Threads min", $"{engineName}", lItems.Min(x => x.threadPoolStatusWorkingThreads).ToString(_statsFormatThreads)));
-				lEngineActivityStats.AddUnique(("Working Threads avg", "unit", ""));
-				lEngineActivityStats.Add(("Working Threads avg", $"{engineName}", lItems.Average(x => x.threadPoolStatusWorkingThreads).ToString(_statsFormatThreads)));
-				lEngineActivityStats.AddUnique(("Working Threads max", "unit", ""));
-				lEngineActivityStats.Add(("Working Threads max", $"{engineName}", lItems.Max(x => x.threadPoolStatusWorkingThreads).ToString(_statsFormatThreads)));
+				logTableActivity.AddUniqueItem("Working Threads at start", "unit", "");
+				logTableActivity.AddItem("Working Threads at start", $"{engineName}", first.threadPoolStatusWorkingThreads.ToString(_statsFormatThreads));
+				logTableActivity.AddUniqueItem("Working Threads at end", "unit", "");
+				logTableActivity.AddItem("Working Threads at end", $"{engineName}", last.threadPoolStatusWorkingThreads.ToString(_statsFormatThreads));
+				logTableActivity.AddUniqueItem("Working Threads change", "unit", "");
+				logTableActivity.AddItem("Working Threads change", $"{engineName}", (last.threadPoolStatusWorkingThreads - first.threadPoolStatusWorkingThreads).ToString(_statsFormatThreadsChange));
+				logTableActivity.AddUniqueItem("Working Threads min", "unit", "");
+				logTableActivity.AddItem("Working Threads min", $"{engineName}", lItems.Min(x => x.threadPoolStatusWorkingThreads).ToString(_statsFormatThreads));
+				logTableActivity.AddUniqueItem("Working Threads avg", "unit", "");
+				logTableActivity.AddItem("Working Threads avg", $"{engineName}", lItems.Average(x => x.threadPoolStatusWorkingThreads).ToString(_statsFormatThreads));
+				logTableActivity.AddUniqueItem("Working Threads max", "unit", "");
+				logTableActivity.AddItem("Working Threads max", $"{engineName}", lItems.Max(x => x.threadPoolStatusWorkingThreads).ToString(_statsFormatThreads));
+
+				//sep
+				logTableActivity.AddSeparatorAfterRow("Working Threads max");
 
 				//idle threads
-				lEngineActivityStats.AddUnique(("Idle Threads at start", "unit", ""));
-				lEngineActivityStats.Add(("Idle Threads at start", $"{engineName}", first.threadPoolStatusIdleThreads.ToString(_statsFormatThreads)));
-				lEngineActivityStats.AddUnique(("Idle Threads at end", "unit", ""));
-				lEngineActivityStats.Add(("Idle Threads at end", $"{engineName}", last.threadPoolStatusIdleThreads.ToString(_statsFormatThreads)));
-				lEngineActivityStats.AddUnique(("Idle Threads change", "unit", ""));
-				lEngineActivityStats.Add(("Idle Threads change", $"{engineName}", (last.threadPoolStatusIdleThreads - first.threadPoolStatusIdleThreads).ToString(_statsFormatThreadsChange)));
-				lEngineActivityStats.AddUnique(("Idle Threads min", "unit", ""));
-				lEngineActivityStats.Add(("Idle Threads min", $"{engineName}", lItems.Min(x => x.threadPoolStatusIdleThreads).ToString(_statsFormatThreads)));
-				lEngineActivityStats.AddUnique(("Idle Threads avg", "unit", ""));
-				lEngineActivityStats.Add(("Idle Threads avg", $"{engineName}", lItems.Average(x => x.threadPoolStatusIdleThreads).ToString(_statsFormatThreads)));
-				lEngineActivityStats.AddUnique(("Idle Threads max", "unit", ""));
-				lEngineActivityStats.Add(("Idle Threads max", $"{engineName}", lItems.Max(x => x.threadPoolStatusIdleThreads).ToString(_statsFormatThreads)));
+				logTableActivity.AddUniqueItem("Idle Threads at start", "unit", "");
+				logTableActivity.AddItem("Idle Threads at start", $"{engineName}", first.threadPoolStatusIdleThreads.ToString(_statsFormatThreads));
+				logTableActivity.AddUniqueItem("Idle Threads at end", "unit", "");
+				logTableActivity.AddItem("Idle Threads at end", $"{engineName}", last.threadPoolStatusIdleThreads.ToString(_statsFormatThreads));
+				logTableActivity.AddUniqueItem("Idle Threads change", "unit", "");
+				logTableActivity.AddItem("Idle Threads change", $"{engineName}", (last.threadPoolStatusIdleThreads - first.threadPoolStatusIdleThreads).ToString(_statsFormatThreadsChange));
+				logTableActivity.AddUniqueItem("Idle Threads min", "unit", "");
+				logTableActivity.AddItem("Idle Threads min", $"{engineName}", lItems.Min(x => x.threadPoolStatusIdleThreads).ToString(_statsFormatThreads));
+				logTableActivity.AddUniqueItem("Idle Threads avg", "unit", "");
+				logTableActivity.AddItem("Idle Threads avg", $"{engineName}", lItems.Average(x => x.threadPoolStatusIdleThreads).ToString(_statsFormatThreads));
+				logTableActivity.AddUniqueItem("Idle Threads max", "unit", "");
+				logTableActivity.AddItem("Idle Threads max", $"{engineName}", lItems.Max(x => x.threadPoolStatusIdleThreads).ToString(_statsFormatThreads));
 			}
 
-			LogArray LAActivity = new LogArray(lEngineActivityStats);
-			LAActivity.Log();
+			logTableActivity.SysLog();
 
 			Sys.Log($"----------------------------------------------------");
 			swStats.Stop();
@@ -293,7 +311,6 @@ namespace Sinequa.Plugin
 		public int processInstalledMemoryMb { get; private set; }
 		public int processAvailableMemoryMb { get; private set; }
 		//Activity
-		public int activityConnectionsCount { get; private set; }
 		public double activityQueriesAverageProcessingTimeMs { get; private set; }
 		public double activityQueriesThroughput { get; private set; }
 		public int activityOverload { get; private set; }
@@ -340,9 +357,6 @@ namespace Sinequa.Plugin
 			else this.processAvailableMemoryMb = processAvailableMemoryMb;
 
 			//Activity
-			//TODO - Connections Count - not used anymore ?
-			if (!int.TryParse(xml.SelectSingleNode("/Engine/Activity/Connections/Count").InnerText, out int activityConnectionsCount)) return false;
-			else this.activityConnectionsCount = activityConnectionsCount;
 			if (!double.TryParse(xml.SelectSingleNode("/Engine/Activity/Queries/AverageProcessingTimeMs").InnerText, out double activityQueriesAverageProcessingTimeMs)) return false;
 			else this.activityQueriesAverageProcessingTimeMs = activityQueriesAverageProcessingTimeMs;
 			if (!double.TryParse(xml.SelectSingleNode("/Engine/Activity/Queries/Throughput").InnerText, out double activityQueriesThroughput)) return false;
@@ -351,7 +365,6 @@ namespace Sinequa.Plugin
 			else this.activityOverload = activityOverload;
 			if (!int.TryParse(xml.SelectSingleNode("/Engine/Activity/IsRecoveringFromOverload").InnerText, out int activityIsRecoveringFromOverload)) return false;
 			else this.activityIsRecoveringFromOverload = activityIsRecoveringFromOverload;
-			//TODO - Refuses Connections - not used anymore ?
 			if (!int.TryParse(xml.SelectSingleNode("/Engine/Activity/RefusesConnections").InnerText, out int activityRefusesConnections)) return false;
 			else this.activityRefusesConnections = activityRefusesConnections;
 
@@ -387,6 +400,7 @@ namespace Sinequa.Plugin
 
 			sb.Append("Overload" + separator);
 			sb.Append("IsRecoveringFromOverload" + separator);
+			sb.Append("RefusesConnections" + separator);
 
 			sb.Append("Threads Working" + separator);
 			sb.Append("Threads Idle" + separator);
@@ -411,6 +425,7 @@ namespace Sinequa.Plugin
 
 			sb.Append(this.activityOverload.ToString() + separator);
 			sb.Append(this.activityIsRecoveringFromOverload.ToString() + separator);
+			sb.Append(this.activityRefusesConnections.ToString() + separator);
 
 			sb.Append(this.threadPoolStatusWorkingThreads.ToString() + separator);
 			sb.Append(this.threadPoolStatusIdleThreads.ToString() + separator);

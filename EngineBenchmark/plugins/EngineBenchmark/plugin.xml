@@ -30,7 +30,7 @@
 			<Comment></Comment>
 		</e>
 	</Files>
-	<IsDebug>true</IsDebug>
+	<IsDebug>false</IsDebug>
 	<ExternalDllPath></ExternalDllPath>
 	<UseLegacyCompiler>false</UseLegacyCompiler>
 	<Reference>%%SystemXmlLinqDll%%</Reference>
