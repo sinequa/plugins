@@ -120,6 +120,7 @@ namespace Sinequa.Plugin
 
 					//cursor Network And Deserialization Timer = execCursorTimer - processingTime
 					cursorNetworkAndDeserializationTimer = execCursorTimer - processingTime;
+					if (cursorNetworkAndDeserializationTimer < 0) cursorNetworkAndDeserializationTimer = 0;
 
 					//optional attributes - Internal Query Log - Internal Query Analysis
 					GetCursorIQLIQAAttribute();

@@ -19,7 +19,7 @@ namespace Sinequa.Plugin
 
 	public class EngineBenchmark : CommandPlugin
 	{
-		const string EngineBenchmarkVersion = "0.9.4";
+		const string EngineBenchmarkVersion = "0.9.5 (beta)";
 
 		private EngineActivityManager _engineActivityManager;
 		private CmdConfigEngineBenchmark _conf;

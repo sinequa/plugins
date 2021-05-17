@@ -828,12 +828,14 @@ namespace Sinequa.Plugin
 			}
 
 			List<double> lSortedValues = lValues.OrderBy(d => d).ToList();
+			double minValue = lSortedValues.First(); 
 			double maxValue = lSortedValues.Last();
 			int lSortedValuesCount = lSortedValues.Count;
 
-			int index = (int)Math.Ceiling(percentil * lValues.Count);
-			if (index >= lValues.Count) return maxValue;
-			return lValues.ElementAt(index);
+			int index = (int)Math.Ceiling(percentil * lSortedValues.Count);
+			if (index <= 0) return minValue;
+			if (index >= lSortedValues.Count) return maxValue;
+			return lSortedValues.ElementAt(index);
 		}
 
 		public double GetOutputMultiStatPercentile(MultiStatProperty p, double percentil, string engineName, string elem)

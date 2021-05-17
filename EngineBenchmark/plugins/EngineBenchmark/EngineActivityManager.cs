@@ -70,7 +70,7 @@ namespace Sinequa.Plugin
 				CancellationTokenSource source = new CancellationTokenSource();
 				_dCancellationTokenSource.Add(engine, source);
 				Sys.Log($"Start periodic Engine activity monitoring on Engine [{engine.Name}], frequency [{_frequency} ms]");
-				PeriodicEngineActivity(engine.Name, _frequency, source.Token);
+				Task t = PeriodicEngineActivity(engine.Name, _frequency, source.Token);
 			}
 			Sys.Log($"----------------------------------------------------");
 
