@@ -487,6 +487,7 @@ namespace Sinequa.Plugin
 		public bool outputIQLBrokering { get; private set; }
 		public bool outputIQLDistributionsCorrelations { get; private set; }
 		public bool outputIQLAcqRLk { get; private set; }
+		public bool outputRFMBoost { get; private set; }
 
 		//cursor size breakdown
 		public bool outputCursorSizeBreakdown { get; private set; }
@@ -867,9 +868,21 @@ namespace Sinequa.Plugin
 			if (!DatatagExist(dataTag)) return false;
 			outputIQLThreadCount = _XMLConf.ValueBoo(dataTag, false);
 
+			//RFM Boost
+			dataTag = "CMD_OUTPUT_INTERNALQUERYLOG_RFM_BOOST";
+			if (!DatatagExist(dataTag)) return false;
+			outputRFMBoost = _XMLConf.ValueBoo(dataTag, false);
 
 			//if any outputIQL*, outputIQL = true
-			if (outputIQLSearchRWA || outputIQLDBQuery || outputIQLHeader || outputIQLBrokering || outputIQLDistributionsCorrelations || outputIQLThreadCount || outputIQLAcqRLk)
+			if (	
+				outputIQLSearchRWA ||
+				outputIQLDBQuery || 
+				outputIQLHeader || 
+				outputIQLBrokering || 
+				outputIQLDistributionsCorrelations ||
+				outputIQLThreadCount || 
+				outputIQLAcqRLk || 
+				outputRFMBoost)
 			{
 				outputIQL = true;
 			}
@@ -1015,6 +1028,7 @@ namespace Sinequa.Plugin
 			Sys.Log($"Output internal query log - distributions & correlations timers : [{this.outputIQLDistributionsCorrelations}]");
 			Sys.Log($"Output internal query log - threads count : [{this.outputIQLThreadCount}]");
 			Sys.Log($"Output internal query log - AcqRLk timers : [{this.outputIQLAcqRLk}]");
+			Sys.Log($"Output internal query log - RFMBoost timers : [{this.outputRFMBoost}]");
 			Sys.Log($"----------------------------------------------------");
 			Sys.Log($"Output Cursor Size Breakdown : [{this.outputCursorSizeBreakdown}]");
 			Sys.Log($"Output Cursor Size empty columns : [{this.outputCursorSizeEmptyColumns}]");

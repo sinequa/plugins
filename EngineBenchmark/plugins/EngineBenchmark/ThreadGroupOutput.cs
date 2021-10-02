@@ -87,6 +87,12 @@ namespace Sinequa.Plugin
 		//Correlations
 		public List<(string engineName, string correlation, double duration)> IQLCorrelation { get; private set; } = new List<(string engineName, string distCorl, double duration)>();
 
+		//RFMBoost
+		//RFM:exact
+		public double IQLRFMBoostExact { get; private set; }
+		//RFM:similar
+		public double IQLRFMBoostSimilar { get; private set; }
+
 		//Cursor Size Breakdown
 		public Dictionary<string, long> dCursorSizeBreakdown { get; private set; } = new Dictionary<string, long>();
 
@@ -167,7 +173,6 @@ namespace Sinequa.Plugin
 
 			if (String.IsNullOrEmpty(query.internalQueryLog)) return false;
 
-			double d = 0;
 			XDocument xInternalQueryLog = XDocument.Parse(query.internalQueryLog);
 			if (xInternalQueryLog == null)
 			{
@@ -178,6 +183,9 @@ namespace Sinequa.Plugin
 			//AcqMRdLk duration & start - AcqDBRdLk - NetworkNotificationToWorkerStart - MsgDeserialize - QueryProcessorParse
 			if (_threadGroup.conf.outputIQLHeader) GetFromIQL_Header_Duration(xInternalQueryLog);
 			if (_threadGroup.conf.outputIQLThreadCount) GetFromIQL_Header_Tid_Distinct(xInternalQueryLog);
+
+			//RFMBoost
+			if (_threadGroup.conf.outputRFMBoost) GetFromIQL_RFMBoost(xInternalQueryLog.Descendants("RFMBoost").First());
 
 			//no brokering, no engine tag
 			if (xInternalQueryLog.Descendants("Engine").Count() == 0)
@@ -485,6 +493,22 @@ namespace Sinequa.Plugin
 			return true;
 		}
 
+		private bool GetFromIQL_RFMBoost(XElement RFMBoostElem)
+        {
+			if (RFMBoostElem == null) return false;
+			double d;
+
+			//<timing name='RFM:exact' duration='6.36 ms' start='0.46 ms' tid='24'/>
+			if (GetTimingDuration(RFMBoostElem, "RFM:exact", out d)) IQLRFMBoostExact = d;
+			else return false;
+
+			//<timing name='RFM:similar' duration='17.03 ms' start='0.40 ms' tid='169'/>
+			if (GetTimingDuration(RFMBoostElem, "RFM:similar", out d)) IQLRFMBoostSimilar = d;
+			else return false;
+
+			return true;
+		}
+
 		private string EngineSRPCToEngineName(string srpcEngineName)
         {
 			if (String.IsNullOrEmpty(srpcEngineName)) return null;
@@ -772,6 +796,11 @@ namespace Sinequa.Plugin
 				lHeaders.Add("MsgDeserialize");
 				lHeaders.Add("QueryProcessorParse");
 			}
+			if (this._threadGroup.conf.outputRFMBoost)
+			{
+				lHeaders.Add("RFM:exact");
+				lHeaders.Add("RFM:similar");
+			}
 			if (this._threadGroup.conf.outputIQLBrokering)
 			{
 				lHeaders.Add("Broker Engine");
@@ -879,6 +908,14 @@ namespace Sinequa.Plugin
 					if (querySuccess) lColumns.Add(IQLMsgDeserialize.ToString()); else lColumns.Add(Str.Empty);
 					//QueryProcessorParse
 					if (querySuccess) lColumns.Add(IQLQueryProcessorParse.ToString()); else lColumns.Add(Str.Empty);
+				}
+				if (this._threadGroup.conf.outputRFMBoost)
+				{
+					//RFM Boost
+					//Exact
+					if (querySuccess) lColumns.Add(IQLRFMBoostExact.ToString()); else lColumns.Add(Str.Empty);
+					//Similar
+					if (querySuccess) lColumns.Add(IQLRFMBoostSimilar.ToString()); else lColumns.Add(Str.Empty);
 				}
 				if (this._threadGroup.conf.outputIQLBrokering)
 				{

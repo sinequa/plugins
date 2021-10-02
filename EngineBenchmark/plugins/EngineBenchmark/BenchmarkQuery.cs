@@ -206,6 +206,8 @@ namespace Sinequa.Plugin
 			AddToTotalTime(execCursorTimer);
 			swClientCursorExecute.Reset();
 
+			Sys.Log2(100, $"{{{threadId}}} Thread group [{threadGroupName}][{iteration}] SQL  [{sql}]");
+
 			Sys.Log2(50, $"{{{threadId}}} Thread group [{threadGroupName}][{iteration}] ExecCursor [{Sys.TimerGetText(execCursorTimer)}]");
 
 			if (_cursor == null) return false;

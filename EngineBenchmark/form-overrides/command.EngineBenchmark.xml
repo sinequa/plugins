@@ -263,6 +263,12 @@
 				<DefaultValue>false</DefaultValue>
 				<Icon><ToolTip>{Lang("Add the following infomation to the '&lt;ThreadGroupName&gt;_Queries.csv' file: [Header threads][Threads per engine][Total threads]. Default: false")}</ToolTip></Icon>
 			</CheckBox>
+			<CheckBox>
+				<Display>{Lang("Internal Query Log - RFM Boost timers")}</Display>
+				<DataTag>CMD_OUTPUT_INTERNALQUERYLOG_RFM_BOOST</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Add the following infomation to the '&lt;ThreadGroupName&gt;_Queries.csv' file: [RFM:exact][RFM:similar]. Default: false")}</ToolTip></Icon>
+			</CheckBox>
 		</Group>
 		<Group merge-type="add" id="output_cursorsizebreakdown">
 			<Display>Lang("Cursor size breakdown")</Display>

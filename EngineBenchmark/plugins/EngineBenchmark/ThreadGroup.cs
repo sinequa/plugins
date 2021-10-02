@@ -174,7 +174,9 @@ namespace Sinequa.Plugin
 			postGroupByMatchingRowCount,
 			totalQueryTime,
 			readCursor,
-			curosrNetworkAndDeserialization
+			curosrNetworkAndDeserialization,
+			RFMBoostExact,
+			RFMBoostSimilar,
 		}
 
 		public enum MultiStatProperty
@@ -740,6 +742,16 @@ namespace Sinequa.Plugin
 			if (p == SimpleStatProperty.curosrNetworkAndDeserialization && t == StatType.avg) return l.Average(x => x.curosrNetworkAndDeserialization);
 			if (p == SimpleStatProperty.curosrNetworkAndDeserialization && t == StatType.stddev) return StdDev(l.Select(x => x.curosrNetworkAndDeserialization));
 
+			if (p == SimpleStatProperty.RFMBoostExact && t == StatType.min) return l.Min(x => x.IQLRFMBoostExact);
+			if (p == SimpleStatProperty.RFMBoostExact && t == StatType.max) return l.Max(x => x.IQLRFMBoostExact);
+			if (p == SimpleStatProperty.RFMBoostExact && t == StatType.avg) return l.Average(x => x.IQLRFMBoostExact);
+			if (p == SimpleStatProperty.RFMBoostExact && t == StatType.stddev) return StdDev(l.Select(x => x.IQLRFMBoostExact));
+
+			if (p == SimpleStatProperty.RFMBoostSimilar && t == StatType.min) return l.Min(x => x.IQLRFMBoostSimilar);
+			if (p == SimpleStatProperty.RFMBoostSimilar && t == StatType.max) return l.Max(x => x.IQLRFMBoostSimilar);
+			if (p == SimpleStatProperty.RFMBoostSimilar && t == StatType.avg) return l.Average(x => x.IQLRFMBoostSimilar);
+			if (p == SimpleStatProperty.RFMBoostSimilar && t == StatType.stddev) return StdDev(l.Select(x => x.IQLRFMBoostSimilar));
+
 			return -1;
 		}
 
@@ -824,6 +836,8 @@ namespace Sinequa.Plugin
 				case SimpleStatProperty.totalQueryTime: lValues = l.Select(x => x.totalQueryTime).ToList(); break;
 				case SimpleStatProperty.readCursor: lValues = l.Select(x => x.readCursor).ToList(); break;
 				case SimpleStatProperty.curosrNetworkAndDeserialization: lValues = l.Select(x => x.curosrNetworkAndDeserialization).ToList(); break;
+				case SimpleStatProperty.RFMBoostExact: lValues = l.Select(x => x.IQLRFMBoostExact).ToList(); break;
+				case SimpleStatProperty.RFMBoostSimilar: lValues = l.Select(x => x.IQLRFMBoostSimilar).ToList(); break;
 				default: return -1;
 			}
 
@@ -1009,6 +1023,13 @@ namespace Sinequa.Plugin
 					logTableTimers.AddUniqueItem("curosrNetworkAndDeserialization", "unit", "ms");
 					logTableTimers.AddItems(GetTableRowSimpleStat(SimpleStatProperty.curosrNetworkAndDeserialization, _statsFormatMs));
 				}
+                if (conf.outputRFMBoost)
+                {
+					logTableTimers.AddUniqueItem("RFMBoostExact", "unit", "ms");
+					logTableTimers.AddItems(GetTableRowSimpleStat(SimpleStatProperty.RFMBoostExact, _statsFormatMs));
+					logTableTimers.AddUniqueItem("RFMBoostSimilar", "unit", "ms");
+					logTableTimers.AddItems(GetTableRowSimpleStat(SimpleStatProperty.RFMBoostSimilar, _statsFormatMs));
+				}
 				
 				logTableTimers.SysLog();
 			}
@@ -1104,7 +1125,7 @@ namespace Sinequa.Plugin
 				logTableQueryIQLCorrelationTimers.SysLog();
 			}
 
-			swStats.Stop();
+				swStats.Stop();
 			Sys.Log($"Thread Group [{name}] - Compute stats [{Sys.TimerGetText(swStats.ElapsedMilliseconds)}]");
 		}
 

@@ -164,6 +164,7 @@ Internal Query Log - Distributions & Correlations timers | Boolean | false | | A
 Internal Query Log - header timers | Boolean | false | | Add the following infomation to the "output" file: [AcqMRdLk][AcqDBRdLk][NetworkNotificationToWorkerStart][MsgDeserialize][QueryProcessorParse] timers. <br> [AcqMRdLk] => time to acquire indexes existence <br>[AcqDBRdLk] =>  time to acquire main index list lock  <br> [NetworkNotificationToWorkerStart] => time from input notification (network) to worker thread assignment and processing start <br> [MsgDeserialize] => time to deserialize the input query <br>[QueryProcessorParse] => time to analyze the query (can include index access for fuzzy search)
 Internal Query Log - Brokering Info & timer | Boolean | false | | Add the following infomation to the "output" file: [Broker Engine][Client Engine(s)] and [MergeAttributes] duration. <br> [Broker Engine] => Broker is in charge of propagating the SQL query to other Engines (so called clients) if needed. Client will return their results to the broken that ultimately be incharge of merging all the results. <br> [Client Engine(s)] => List of Engines called by the 'Broker' <br> [MergeAttributes] => time to merge attributes between boker and clients
 Internal Query Log - Threads count | Boolean | false | | Add the following infomation to the "output" file: [Header threads][Threads per engine][Total threads] <br> [Header threads] => Number of distinct threads used for [AcqMRdLk][AcqDBRdLk][NetworkNotificationToWorkerStart][MsgDeserialize][QueryProcessorParse] <br> [Threads per engine] => Number of distinct threads per Engine <br> [Total threads] => Represent the total number of distinct threads used to perform the query.
+Internal Query Log - RFM Boost | Boolean | false | | Add the following infomation to the "output" file: [RFM:exact][RFM:similar] <br> [RFM:exact] => time to perform RFM exact match on RFM Index <br> [RFM:similar] => time to perform RFM similar match on RFM Index
 
 ## <a name="configuration_output_cursor"></a> Cursor size breakdown
 
@@ -280,11 +281,13 @@ Once all thread groups have been executed, statistics will be computed. Dependin
 By default, you'll get the following statistics per thread group:
 
 ```
-2020-11-25 15:32:17 Thread Group [query_1] - Execution time [1 min 7 s 106.000 ms]
-2020-11-25 15:32:17 Thread Group [query_1] - Number of iterations [189]
-2020-11-25 15:32:17 Thread Group [query_1] - Number of success queries [189/189] [100.00%]
-2020-11-25 15:32:17 Thread Group [query_1] - Number of failed queries [0/189] [0.00%]
-2020-11-25 15:32:17 Thread Group [query_1] - QPS (Query Per Second) [2.82]
+2021-10-02 16:12:26 Thread Group [query_1] - Execution time [30 s 919 ms]
+2021-10-02 16:12:26 Thread Group [query_1] - Number of iterations [789]
+2021-10-02 16:12:26 Thread Group [query_1] - Number of success queries [789/789] [100.00%]
+2021-10-02 16:12:26 Thread Group [query_1] - Number of failed queries [0/789] [0.00%]
+2021-10-02 16:12:26 Thread Group [query_1] - Number of parsing error queries [0/789] [0.00%]
+2021-10-02 16:12:26 Thread Group [query_1] - Number of dump error queries [0/789] [0.00%]
+2021-10-02 16:12:26 Thread Group [query_1] - QPS (Query Per Second) [25.52] 
 ```
 
 Then you'll find multiple tables presenting queries detailed statistics abour the queries of the thread group. 
@@ -297,21 +300,25 @@ If you have enabled "ClientTimers" the table will contains "clientFromPool" and 
 
 If you have enabled "CurosrNetworkAndDeserializationTimer" the table will contains "CurosrNetworkAndDeserializationTimer"
 
+If you have enabled "RFMBoostTimers" the table will contains "RFMBoostExact" and "RFMBoostSimilar"
+
 ```
-2020-11-25 15:32:17 ----------------------------------------------------------------------------------------------------------------------------------------------
-2020-11-25 15:32:17 |[query_1]                      |unit|  MIN|     AVG|      MAX|  StdDev| 10th|  20th|  30th|  40th|  50th|    60th|    70th|    80th|    90th|
-2020-11-25 15:32:17 ----------------------------------------------------------------------------------------------------------------------------------------------
-2020-11-25 15:32:17 |totalQueryTime                 |  ms|20.00|2,164.29|19,799.00|3,197.08|91.00|213.00|417.00|634.00|923.00|1,261.00|2,053.00|3,594.00|6,032.00|
-2020-11-25 15:32:17 |processingTime                 |  ms|16.76|1,481.34|12,199.27|2,095.84|76.21|161.09|287.61|539.47|678.98|  912.50|1,435.02|2,335.86|4,160.87|
-2020-11-25 15:32:17 |rowFetchTime                   |  ms| 0.00|  885.18|11,765.95|1,765.68| 0.00| 24.66| 56.02| 89.40|152.84|  276.49|  550.78|1,295.57|3,158.99|
-2020-11-25 15:32:17 |readCursor                     |  ms| 0.00|  205.59| 3,341.00|  532.42| 1.00|  3.00|  3.00|  5.00|  7.00|    8.00|   16.00|  175.00|  661.00|
-2020-11-25 15:32:17 |cursorSizeMB                   |  MB|0.010|   6.286|   42.606|  13.388|0.016| 0.104| 0.107| 0.143| 0.216|   0.389|   0.623|  12.381|  42.600|
-2020-11-25 15:32:17 |matchingRowCount               |rows|    0|   6,597|   28,608|   8,335|    0|   518|   684| 3,078| 4,659|   5,006|   8,130|   8,690|  28,608|
-2020-11-25 15:32:17 |postGroupByMatchingRowCount    |rows|    0|   6,597|   28,608|   8,335|    0|   518|   684| 3,078| 4,659|   5,006|   8,130|   8,690|  28,608|
-2020-11-25 15:32:17 |clientFromPool                 |  ms| 0.00|   16.14|   814.00|  103.63| 0.00|  0.00|  0.00|  0.00|  0.00|    0.00|    0.00|    0.00|    0.00|
-2020-11-25 15:32:17 |clientToPool                   |  ms| 0.00|   91.64| 2,047.00|  258.11| 0.00|  0.00|  1.00|  2.00|  3.00|   10.00|   22.00|   89.00|  208.00|
-2020-11-25 15:32:17 |curosrNetworkAndDeserialization|  ms| 3.24|  369.57| 5,292.20|  662.96| 7.79| 17.94| 46.92| 86.44|141.94|  207.51|  334.38|  496.04|  828.47|
-2020-11-25 15:32:17 ----------------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+| [query_1]                       | unit |    MIN |    AVG |    MAX | StdDev |   10th |   20th |   30th |   40th |   50th |   60th |   70th |   80th |   90th |
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+| totalQueryTime                  |   ms |  63.00 |  94.17 | 145.00 |  10.61 |  81.00 |  85.00 |  89.00 |  91.00 |  95.00 |  97.00 |  99.00 | 103.00 | 108.00 |
+| processingTime                  |   ms |  59.10 |  88.93 | 137.95 |  10.10 |  76.06 |  80.31 |  83.46 |  85.87 |  89.43 |  91.85 |  94.15 |  97.04 | 101.96 |
+| rowFetchTime                    |   ms |   5.52 |   8.82 |  12.95 |   1.53 |   6.90 |   7.34 |   7.60 |   8.00 |   8.72 |   9.48 |   9.99 |  10.41 |  10.93 |
+| readCursor                      |   ms |   1.00 |   1.37 |  13.00 |   0.71 |   1.00 |   1.00 |   1.00 |   1.00 |   1.00 |   1.00 |   2.00 |   2.00 |   2.00 |
+| cursorSizeMB                    |   MB |  0.198 |  0.198 |  0.198 |  0.000 |  0.198 |  0.198 |  0.198 |  0.198 |  0.198 |  0.198 |  0.198 |  0.198 |  0.198 |
+| matchingRowCount                | rows | 10,000 | 10,000 | 10,000 |      0 | 10,000 | 10,000 | 10,000 | 10,000 | 10,000 | 10,000 | 10,000 | 10,000 | 10,000 |
+| postGroupByMatchingRowCount     | rows | 10,000 | 10,000 | 10,000 |      0 | 10,000 | 10,000 | 10,000 | 10,000 | 10,000 | 10,000 | 10,000 | 10,000 | 10,000 |
+| clientFromPool                  |   ms |   0.00 |   0.00 |   0.00 |   0.00 |   0.00 |   0.00 |   0.00 |   0.00 |   0.00 |   0.00 |   0.00 |   0.00 |   0.00 |
+| clientToPool                    |   ms |   0.00 |   0.01 |   6.00 |   0.22 |   0.00 |   0.00 |   0.00 |   0.00 |   0.00 |   0.00 |   0.00 |   0.00 |   0.00 |
+| curosrNetworkAndDeserialization |   ms |   2.11 |   3.86 |  24.54 |   1.44 |   2.85 |   3.12 |   3.35 |   3.58 |   3.77 |   3.94 |   4.15 |   4.42 |   4.71 |
+| RFMBoostExact                   |   ms |   1.04 |   1.48 |   4.31 |   0.34 |   1.27 |   1.32 |   1.36 |   1.41 |   1.45 |   1.48 |   1.51 |   1.57 |   1.63 |
+| RFMBoostSimilar                 |   ms |   1.99 |   3.02 |  30.16 |   1.43 |   2.40 |   2.50 |   2.58 |   2.66 |   2.73 |   2.82 |   2.94 |   3.09 |   3.58 |
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
 ```
 
 
