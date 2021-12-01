@@ -185,7 +185,11 @@ namespace Sinequa.Plugin
 			if (_threadGroup.conf.outputIQLThreadCount) GetFromIQL_Header_Tid_Distinct(xInternalQueryLog);
 
 			//RFMBoost
-			if (_threadGroup.conf.outputRFMBoost) GetFromIQL_RFMBoost(xInternalQueryLog.Descendants("RFMBoost").First());
+			if (_threadGroup.conf.outputRFMBoost)
+            {
+				if(xInternalQueryLog.Descendants("RFMBoost").Count() > 0) GetFromIQL_RFMBoost(xInternalQueryLog.Descendants("RFMBoost").First());
+			}
+				
 
 			//no brokering, no engine tag
 			if (xInternalQueryLog.Descendants("Engine").Count() == 0)
