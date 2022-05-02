@@ -15,6 +15,7 @@ It is **recommended to execute this command on a different node than your Engine
 * [Installation steps](#installation_steps)
 * [Configuration](#configuration)
     * [General](#configuration_global)
+        * [Simulate](#configuration_global_simulate)
         * [Engines](#configuration_global_engines)
         * [Thread Group](#configuration_global_threadgroup)
     * [Security](#configuration_security)
@@ -28,7 +29,9 @@ It is **recommended to execute this command on a different node than your Engine
 * [Logs](#logs)
     * [Log format](#logs_format)
     * [Log level](#logs_level)
-    * [Statistics](#logs_stats)
+    * [Indexes Statistics](#logs_stats_indexes)
+    * [Queries Statistics](#logs_stats_queries)
+    * [Engines Activity Statistics](#logs_stats_engines)
 
 
 # <a name="installation_steps"></a> Installation steps
@@ -46,9 +49,17 @@ It is **recommended to execute this command on a different node than your Engine
 
 ## <a name="configuration_global"></a> General
 
-![Form](doc/form_general.png "Form")
+### <a name="configuration_global_simulate"></a> Simulate
+
+![Form](doc/form_general_settings.png "Simulate")
+
+Field | Type | Default value | Required | Comment
+--- | --- | --- | --- | --- 
+Simulate | Boolean | False | | Simulate execution, output only logs. Queries are **not** send to the engines. This mode will force the log level to 20. Ref: [Log level](#logs_level) 
 
 ### <a name="configuration_global_engines"></a> Engines
+
+![Form](doc/form_general_engines.png "Engines")
 
 Field | Type | Default value | Required | Comment
 --- | --- | --- | --- | --- 
@@ -70,6 +81,8 @@ Engines strategy | List | First Available | yes | First available: first availab
     * Engines strategy: Random
 
 ### <a name="configuration_global_threadgroup"></a> Thread Group
+
+![Form](doc/form_general_threadgroups.png "CThread Groups")
 
 Field | Type | Default value | Required | Comment
 --- | --- | --- | --- | --- 
@@ -105,7 +118,7 @@ To do that, use the "Ordered" option for "Parameter strategy" and make sure you'
 
 # <a name="configuration_security"></a> Security
 
-![Form](doc/form_security.png "Form")
+![Form](doc/form_security.png "Security Form")
 
 ## <a name="configuration_security_acl"></a> Users ACLs
 
@@ -126,9 +139,9 @@ Adding users in "Users ACLs" will automatically add one of the user security cla
 
 # <a name="configuration_output"></a> Output
 
-![Form](doc/form_output.png "Form")
-
 ## <a name="configuration_output_types"></a> Output types
+
+![Form](doc/form_output_path.png "Output types form")
 
 There are different types of "output" files.
 * Queries (CSV). Thread groups queries information and timers. Generate one file per thread group.
@@ -144,6 +157,8 @@ Output folder | String | | yes | Folder to store output file.
 CSV Separator | Char | \t | yes | Seperator used within the output CSV file
 
 ## <a name="configuration_output_queries"></a> Queries output
+
+![Form](doc/form_output_queries.png "Queries output form")
 
 A CSV file will be generated for each thread group using the following naming convention: "&lt;ThreadGroupName&gt;_Queries.csv". It'll contains detailed informations and timers about the queries executed by the thread group.
 You must enable the "Queries ouput" option in order to enable any additional settings.
@@ -168,6 +183,8 @@ Internal Query Log - RFM Boost | Boolean | false | | Add the following infomatio
 
 ## <a name="configuration_output_cursor"></a> Cursor size breakdown
 
+![Form](doc/form_output_cursorsize.png "Cursor size breakdown form")
+
 A CSV file will be generated for each thread group using the following naming convention: "&lt;ThreadGroupName&gt;_CursorSize.csv". It'll contains the cursor size per queries and the breakdown of the cursor size: size of each attributes and columns of the cursor.
 
 Field | Type | Default value | Required | Comment
@@ -176,6 +193,8 @@ Cursor size breakdown output | Boolean | false | | The Cursor Size output file w
 Output empty columns | Boolean | false | |  Removes column where size is equals to 0
 
 ## <a name="configuration_output_dump"></a> Dump
+
+![Form](doc/form_output_dump.png "Dump form")
 
 Allows you to dump InternalQueryLog, InternalQueryAnalysis and Cursor based on triggers.
 
@@ -194,6 +213,8 @@ Min processing time - Cursor | Integer | 1000 | yes | Minimum query processing t
 **NOTE**: Dumping the data on the disk can slow down the EngineBenchmark command. Unlike the "output" information, this is not stored in memory but wrtitten on the disk right after query execution. 
 
 ## <a name="configuration_output_engineactivity"></a> Engine Activity
+
+![Form](doc/form_output_engineactivity.png "Engine Activity form")
 
 Field | Type | Default value | Required | Comment
 --- | --- | --- | --- | --- 
@@ -218,13 +239,13 @@ Can be represented as:
 ```
 <DT> <{TID}> Thread group <[TG]><[I]> prepare execute SQL on engine <[E]> with parameters [P1]=[V1];[P2]=[V2];[P3]=[V3]
 ```
-&lt;DT&gt; => yyyy-MM-dd HH:mm:ss <br>
+&lt;DT&gt; => DateTime, format: yyyy-MM-dd HH:mm:ss <br>
 &lt;{TID}&gt; => Thread Id <br>
 &lt;[TG]&gt; => Thread Group Name <br>
-&lt;[I]&gt; => Iteration  <br>
-&lt;[E]&gt; => Engine Name  <br>
-&lt;[PN]&gt; => Parameter N  <br>
-&lt;[VN]&gt; => Value N   <br>
+&lt;[I]&gt; => Iteration <br>
+&lt;[E]&gt; => Engine Name <br>
+&lt;[PN]&gt; => Parameter N <br>
+&lt;[VN]&gt; => Value N <br>
 
 Curly braces {} indicates the log has been generated in a multithread context
 
@@ -243,9 +264,8 @@ Example
 
 Example:
 ```
-2020-11-23 13:50:42 {24} Thread group [query_1][8] sleep [642]
-2020-11-23 13:50:43 {24} Thread group [query_1][8] sql [SELECT...FROM...WHERE...]
-2020-11-23 13:50:43 {24} Thread group [query_1][8] engine [Engine3]
+2020-11-23 13:50:42 {24} Thread group [query_1][8] sleep [230]
+2020-11-23 13:50:43 {24} Thread group [query_1][8] sql [SELECT... FROM ... WHERE ...] on engine [Engine1]
 ```
 *NOTE*: SQL query will contains resolved parameters
 
@@ -274,7 +294,52 @@ Example:
 
 **Log level 200**: Debug mode
 
-## <a name="logs_stats"></a> Statistics
+## <a name="logs_stats_indexes"></a> Indexes Statistics
+
+At startup, after configuration gets loaded, indexes statistics are gathered from all Engines on the Sinequa Grid.
+
+Engine information
+
+```
+2022-05-02 12:07:26 Engine [Engine_5] Host [127.0.0.1:10401] Version [11.8.0.64.1108000064] VM Size [2.9 Gb] 
+```
+
+Followed by indexes information hosted on that Engine
+
+```
+-------------------------------------------------------------------------------------------------------------------
+| Engine_5      | Document Count | Document Ratio | Ghost Count | Ghost Ratio | Size on Disk | Size on Disk Ratio |
+-------------------------------------------------------------------------------------------------------------------
+| Idx_EO1_RQ    |          1,069 |        25.35 % |           0 |      0.00 % |       9.2 Mb |            15.56 % |
+| Idx_EO2_RQ    |          1,070 |        25.37 % |           0 |      0.00 % |       9.2 Mb |            15.56 % |
+| Idx_EO3_RQ    |          1,070 |        25.37 % |           0 |      0.00 % |       9.2 Mb |            15.56 % |
+| Idx_Test1_FSR |            334 |         7.92 % |         512 |     33.03 % |         8 Mb |            13.44 % |
+| Idx_Test2_FSR |            333 |         7.90 % |         534 |     34.45 % |       8.1 Mb |            13.66 % |
+| Idx_Test3_FSR |            333 |         7.90 % |         504 |     32.52 % |       8.1 Mb |            13.56 % |
+| RFM           |              8 |         0.19 % |           0 |      0.00 % |       7.5 Mb |            12.65 % |
+-------------------------------------------------------------------------------------------------------------------
+| Total         |          4,217 |       100.00 % |       1,550 |    100.00 % |      59.4 Mb |           100.00 % |
+-------------------------------------------------------------------------------------------------------------------
+```
+
+Summary table of all Engines/Indexes
+
+```
+------------------------------------------------------------------------------------------------------------------------------------------
+| Engines  |      Host | Document Count | Document Ratio | Ghost Count | Ghost Ratio | Size on Disk | Size on Disk Ratio | Indexes Count |
+------------------------------------------------------------------------------------------------------------------------------------------
+| Engine_1 | 127.0.0.1 |     17,708,157 |        36.38 % |   8,757,156 |     25.15 % |      42.9 Gb |            25.46 % |            29 |
+| Engine_2 | 127.0.0.1 |     17,688,838 |        36.34 % |   8,738,069 |     25.10 % |      42.8 Gb |            25.39 % |            23 |
+| Engine_3 |   NOTE262 |      7,190,790 |        14.77 % |   8,660,171 |     24.88 % |      45.3 Gb |            26.91 % |            15 |
+| Engine_4 |   NOTE262 |      6,082,899 |        12.50 % |   8,655,725 |     24.86 % |      37.3 Gb |            22.15 % |            10 |
+| Engine_5 |   NOTE262 |          4,217 |         0.01 % |       1,550 |      0.00 % |      59.4 Mb |             0.03 % |             7 |
+| Engine_6 |   NOTE262 |          6,389 |         0.01 % |       1,644 |      0.00 % |      96.7 Mb |             0.06 % |            12 |
+------------------------------------------------------------------------------------------------------------------------------------------
+| Total    |           |     48,681,290 |       100.00 % |  34,814,315 |    100.00 % |     168.4 Gb |           100.00 % |            96 |
+------------------------------------------------------------------------------------------------------------------------------------------
+```
+
+## <a name="logs_stats_queries"></a> Queries Statistics
 
 Once all thread groups have been executed, statistics will be computed. Depending on the output options you selected, you'll get different types of statistics.
 
@@ -451,6 +516,8 @@ If you have enabled "Internal Query Log - DistributionsCorrelations", the follow
 2020-11-25 15:32:51 |[person] [Engine4]   |  ms|0.01|0.33| 0.84|  0.20|0.14|0.17|0.22|0.25|0.31|0.41|0.46|0.51| 0.56|
 2020-11-25 15:32:51 -------------------------------------------------------------------------------------------------
 ```
+
+## <a name="logs_stats_engines"></a> Engines Activity Statistics
 
 If you have enabled "Engine activity", the following table will be displayed
 

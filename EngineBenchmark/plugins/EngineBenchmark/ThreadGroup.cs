@@ -378,6 +378,8 @@ namespace Sinequa.Plugin
 
 			_paramsLoaded = true;
 
+			Sys.Log($"Thread Group [{this.name}] parameter file [{paramCustomFile.Name}] params [{string.Join(fileSep.ToString(), headers)}] lines [{_parameters.Count()}]");
+
 			return true;
 		}
 

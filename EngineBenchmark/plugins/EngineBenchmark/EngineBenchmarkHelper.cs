@@ -7,6 +7,7 @@ using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Globalization;
+using System.Xml.Linq;
 
 namespace Sinequa.Plugin
 {
@@ -292,16 +293,35 @@ namespace Sinequa.Plugin
 
 	public class EngineCustomStatus : IEquatable<EngineCustomStatus>
 	{
-		public bool IsAlive { get; } = false;
-		public int ConnectionCount { get; } = 0;
-		public string Host { get; } = Str.Empty;
-		public string Name { get; } = Str.Empty;
-		public int Port { get; } = 0;
-		public DateTime StartTime { get; } = new DateTime();
-		public string Version { get; } = Str.Empty;
-		public long VMSize { get; } = 0;
+		private bool _init = false;
+
+		public bool IsAlive { get; private set; } = false;
+		public int ConnectionCount { get; private set; } = 0;
+		public string Host { get; private set; } = Str.Empty;
+		public string Name { get; private set; } = Str.Empty;
+		public int Port { get; private set; } = 0;
+		public DateTime StartTime { get; private set; } = new DateTime();
+		public string Version { get; private set; } = Str.Empty;
+		public long VMSize { get; private set; } = 0;
 		public string SRPC { get; private set; }
-		public ListOf<IndexStatus> indexesStatus { get; private set; }
+		public ListOf<IndexStatus> IndexesStatus { get; private set; }
+		public string ServerStatus { get; private set; }
+		public XDocument XServerStatus { get; private set; }
+		public Dictionary<string, (string indexName, long docs, long ghosts, long diskSizeBytes)> dIndexesStats { get; private set; } = new Dictionary<string, (string, long, long, long)>();
+
+		public long TotalDocs
+		{
+			get { return dIndexesStats.Values.Sum(_ => _.docs); }
+		}
+		public long TotalGhosts
+		{
+			get { return dIndexesStats.Values.Sum(_ => _.ghosts); }
+		}
+		public long TotalDiskSizeBytes
+		{
+			get { return dIndexesStats.Values.Sum(_ => _.diskSizeBytes); }
+		}
+
 
 		public EngineCustomStatus(EngineClient client)
 		{
@@ -319,8 +339,23 @@ namespace Sinequa.Plugin
 				this.Name = client.Name;
 				this.Port = client.Port;
 				this.SRPC = GetSRPC(client);
-				this.indexesStatus = client.GetIndexesStatus();
+				this.IndexesStatus = client.GetIndexesStatus();
+				this.ServerStatus = client.GetServerStatus();
+
+				//TODO moved away from constructor
+				this.Init();
 			}
+		}
+
+		public bool Init()
+        {
+			if (_init) return _init;
+
+			this.XServerStatus = XDocument.Parse(ServerStatus);
+			this.GetIndexesStats();
+			this._init = true;
+
+			return _init;
 		}
 
 		public string GetDisplayIPPort()    //IP:PORT
@@ -343,33 +378,69 @@ namespace Sinequa.Plugin
 			return "srpc://" + client.Host + ":" + client.Port;
 		}
 
-		public void LogIndexesGrid()
+		private void GetIndexesStats()
         {
+			foreach (IndexStatus idxStatus in IndexesStatus)
+			{
+				long docs = idxStatus.DocumentCount;
+				long ghosts = idxStatus.GhostCount;
+				long diskSizeBytes = GetIndexSizeOnDiskBytes(idxStatus.Name);
+				dIndexesStats.Add(idxStatus.Name, (idxStatus.Name, docs, ghosts, diskSizeBytes));
+			}
+		}
+
+		private void LogIndexesGrid()
+		{
 			LogTable logTableIndexes = new LogTable(Name);
 			logTableIndexes.SetInnerColumnSpaces(1, 1);
 
-			long totalDocs = 0;
-			long totalGhosts = 0;
-			foreach (IndexStatus idxStatus in indexesStatus)
+			foreach ((string indexName, long docs, long ghosts, long diskSizeBytes) in dIndexesStats.Values)
 			{
-				long docs = idxStatus.DocumentCount;
-				logTableIndexes.AddItem($"{idxStatus.Name}", "Document Count", docs.ToString("N0", CultureInfo.InvariantCulture));
-				totalDocs += docs;
-
-				long ghosts = idxStatus.GhostCount;
-				logTableIndexes.AddItem($"{idxStatus.Name}", "Ghost Count", ghosts.ToString("N0", CultureInfo.InvariantCulture));
-				totalGhosts += ghosts;
+				logTableIndexes.AddItem(indexName, "Document Count", docs.ToString("N0", CultureInfo.InvariantCulture));
+				double docRatio = (double)docs / (double)TotalDocs;
+				logTableIndexes.AddItem(indexName, "Document Ratio", docRatio.ToString("P", CultureInfo.InvariantCulture));
+				logTableIndexes.AddItem(indexName, "Ghost Count", ghosts.ToString("N0", CultureInfo.InvariantCulture));
+				double ghostRatio = (double)ghosts / (double)TotalGhosts;
+				logTableIndexes.AddItem(indexName, "Ghost Ratio", ghostRatio.ToString("P", CultureInfo.InvariantCulture));
+				logTableIndexes.AddItem(indexName, "Size on Disk", Str.Size(diskSizeBytes));
+				double diskSizeBytesRatio = (double)diskSizeBytes / (double)TotalDiskSizeBytes;
+				logTableIndexes.AddItem(indexName, "Size on Disk Ratio", diskSizeBytesRatio.ToString("P", CultureInfo.InvariantCulture));
 			}
-			logTableIndexes.AddItem("Total", "Document Count", totalDocs.ToString("N0", CultureInfo.InvariantCulture));
-			logTableIndexes.AddItem("Total", "Ghost Count", totalGhosts.ToString("N0", CultureInfo.InvariantCulture));
-			
+
+			logTableIndexes.AddSeparatorBeforeRow("Total");
+			logTableIndexes.AddItem("Total", "Document Count", TotalDocs.ToString("N0", CultureInfo.InvariantCulture));
+			logTableIndexes.AddItem("Total", "Document Ratio", 1.ToString("P", CultureInfo.InvariantCulture));
+			logTableIndexes.AddItem("Total", "Ghost Count", TotalGhosts.ToString("N0", CultureInfo.InvariantCulture));
+			logTableIndexes.AddItem("Total", "Ghost Ratio", 1.ToString("P", CultureInfo.InvariantCulture));
+			logTableIndexes.AddItem("Total", "Size on Disk", Str.Size(TotalDiskSizeBytes));
+			logTableIndexes.AddItem("Total", "Size on Disk Ratio", 1.ToString("P", CultureInfo.InvariantCulture));
+
 			logTableIndexes.SysLog();
 		}
 
-		public void Log(bool indexesStatus = false)
+		private long GetIndexSizeOnDiskBytes(string indexName) => GetIndexSizeOnDiskKb(indexName) * 1024;
+
+		private long GetIndexSizeOnDiskKb(string indexName)
+		{
+			long l = 0;
+
+			if (XServerStatus != null)
+			{
+				XElement indexElem = XServerStatus.Root.Element("Indexes").Descendants("Index").SingleOrDefault(x => Str.EQNC(x.Attribute("Alias").Value, indexName));
+				if (indexElem == null)
+				{
+					Sys.LogWarning($"ServerStatus - Cannot find index [{indexName}]");
+					return -1;
+				}
+				l = long.Parse(indexElem.Element("IndexSizeKb").Value);
+			}
+			return l;
+		}
+
+		public void LogIndexesStatus()
 		{
 			Sys.Log($"Engine [{this.Name}] Host [{this.GetDisplayIPPort()}] Version [{this.Version}] VM Size [{this.GetDisplayVMSize()}] ");
-			if (indexesStatus) LogIndexesGrid();
+			LogIndexesGrid();
 		}
 
 		public bool Equals(EngineCustomStatus other)
@@ -387,7 +458,7 @@ namespace Sinequa.Plugin
 
 
 	public static class EngineStatusHelper
-    {
+	{
 		public static List<EngineCustomStatus> GetEnginesStatus(List<CCEngine> lEngineConfig)
 		{
 			List<EngineCustomStatus> lEngineCustomStatus = new List<EngineCustomStatus>();
@@ -404,12 +475,53 @@ namespace Sinequa.Plugin
 			return lEngineCustomStatus;
 		}
 
-		public static void LogEnginesStatus(List<EngineCustomStatus> lEngineCustomStatus, bool logIndexesStatus = true)
-        {
+		public static void LogEnginesStatus(List<EngineCustomStatus> lEngineCustomStatus)
+		{
 			Sys.Log($"----------------------------------------------------");
 			Sys.Log($"Engine(s) Status");
-			foreach (EngineCustomStatus ECS in lEngineCustomStatus) ECS.Log(logIndexesStatus);
+			foreach (EngineCustomStatus ECS in lEngineCustomStatus) ECS.LogIndexesStatus();
+			LogEnginesGrid(lEngineCustomStatus);
 			Sys.Log($"----------------------------------------------------");
+		}
+
+
+		private static void LogEnginesGrid(List<EngineCustomStatus> lEngineCustomStatus)
+		{
+			LogTable logTableEngines = new LogTable("Engines");
+			logTableEngines.SetInnerColumnSpaces(1, 1);
+
+			long enginesTotalDocs = lEngineCustomStatus.Sum(_ => _.TotalDocs);
+			long enginesTotalGhosts = lEngineCustomStatus.Sum(_ => _.TotalGhosts);
+			long enginesTotalSizeOnDiskBytes = lEngineCustomStatus.Sum(_ => _.TotalDiskSizeBytes);
+			long enginesTotalIndexes = lEngineCustomStatus.Sum(_ => _.IndexesStatus.Count);
+
+			foreach (EngineCustomStatus ECS in lEngineCustomStatus)
+			{
+
+				logTableEngines.AddItem(ECS.Name, "Host", ECS.Host);
+				logTableEngines.AddItem(ECS.Name, "Document Count", ECS.TotalDocs.ToString("N0", CultureInfo.InvariantCulture));
+				double docRatio = (double)ECS.TotalDocs / (double)enginesTotalDocs;
+				logTableEngines.AddItem(ECS.Name, "Document Ratio", docRatio.ToString("P", CultureInfo.InvariantCulture));
+				logTableEngines.AddItem(ECS.Name, "Ghost Count", ECS.TotalGhosts.ToString("N0", CultureInfo.InvariantCulture));
+				double ghostRatio = (double)ECS.TotalGhosts / (double)enginesTotalGhosts;
+				logTableEngines.AddItem(ECS.Name, "Ghost Ratio", ghostRatio.ToString("P", CultureInfo.InvariantCulture));
+				logTableEngines.AddItem(ECS.Name, "Size on Disk", Str.Size(ECS.TotalDiskSizeBytes));
+				double sizeOnDiskRatio = (double)ECS.TotalDiskSizeBytes / (double)enginesTotalSizeOnDiskBytes;
+				logTableEngines.AddItem(ECS.Name, "Size on Disk Ratio", sizeOnDiskRatio.ToString("P", CultureInfo.InvariantCulture));
+				logTableEngines.AddItem(ECS.Name, "Indexes Count", ECS.IndexesStatus.Count.ToString("N0", CultureInfo.InvariantCulture));
+			}
+
+			logTableEngines.AddSeparatorBeforeRow("Total");
+			logTableEngines.AddItem("Total", "Host","");
+			logTableEngines.AddItem("Total", "Document Count", enginesTotalDocs.ToString("N0", CultureInfo.InvariantCulture));
+			logTableEngines.AddItem("Total", "Document Ratio", 1.ToString("P", CultureInfo.InvariantCulture));
+			logTableEngines.AddItem("Total", "Ghost Count", enginesTotalGhosts.ToString("N0", CultureInfo.InvariantCulture));
+			logTableEngines.AddItem("Total", "Ghost Ratio", 1.ToString("P", CultureInfo.InvariantCulture));
+			logTableEngines.AddItem("Total", "Size on Disk", Str.Size(enginesTotalSizeOnDiskBytes));
+			logTableEngines.AddItem("Total", "Size on Disk Ratio", 1.ToString("P", CultureInfo.InvariantCulture));
+			logTableEngines.AddItem("Total", "Indexes Count", enginesTotalIndexes.ToString("N0", CultureInfo.InvariantCulture));
+
+			logTableEngines.SysLog();
 		}
 
 		public static long LogIndexesChanges(List<EngineCustomStatus> A, List<EngineCustomStatus> B)
@@ -420,16 +532,16 @@ namespace Sinequa.Plugin
 			{
 				Sys.LogError($"Cannot compare different lists of Engine Status");
 				return -1;
-            }
+			}
 
 			foreach (EngineCustomStatus A_ECS in A)
-            {
+			{
 				LogTable logTabeIndexesChanges = new LogTable($"Engine [{A_ECS.Name}]");
 				logTabeIndexesChanges.SetInnerColumnSpaces(1, 1);
 
-				foreach (IndexStatus A_ECS_IDX in A_ECS.indexesStatus)
-                {
-					IndexStatus B_ECS_IDX = B.Single(B_ECS => Str.EQ(B_ECS.Name, A_ECS.Name)).indexesStatus.Single(x => Str.EQ(x.Name, A_ECS_IDX.Name));
+				foreach (IndexStatus A_ECS_IDX in A_ECS.IndexesStatus)
+				{
+					IndexStatus B_ECS_IDX = B.Single(B_ECS => Str.EQ(B_ECS.Name, A_ECS.Name)).IndexesStatus.Single(x => Str.EQ(x.Name, A_ECS_IDX.Name));
 
 					long delta = B_ECS_IDX.DocumentCount - A_ECS_IDX.DocumentCount;
 					logTabeIndexesChanges.AddItem(A_ECS_IDX.Name, "From", A_ECS_IDX.DocumentCount.ToString("+0.#;-0.#;0"));
@@ -441,7 +553,7 @@ namespace Sinequa.Plugin
 				logTabeIndexesChanges.SysLog();
 			}
 
-			return totalChanges;			
+			return totalChanges;
 		}
 
 	}
@@ -457,7 +569,8 @@ namespace Sinequa.Plugin
 		private bool _logHeader = true;
 
 		private List<LogTableItem> _lItems = new List<LogTableItem>();
-		private List<string> _lSepearators = new List<string>();
+		private List<string> _lSepearatorsBefore = new List<string>();
+		private List<string> _lSepearatorsAfter = new List<string>();
 
 		private List<string> _lColumns = new List<string>();
 		private List<string> _lRows = new List<string>();
@@ -504,25 +617,30 @@ namespace Sinequa.Plugin
 		}
 
 		public bool AddItems(List<(string rowName, string columnName, string value)> lItems)
-        {
+		{
 			bool bOk = true;
-			foreach((string rowName, string columnName, string value) item in lItems)
-            {
+			foreach ((string rowName, string columnName, string value) item in lItems)
+			{
 				bOk = AddItem(item.rowName, item.columnName, item.value);
 				if (!bOk) return bOk;
 			}
 			return bOk;
-        }
+		}
 
 		public bool AddUniqueItem(string rowName, string columnName, string value)
-        {
+		{
 			if (_lItems.SingleOrDefault(x => Str.EQ(x.row, rowName) && Str.EQ(x.column, columnName) && Str.EQ(x.value, value)) == null) return AddItem(rowName, columnName, value);
 			return true;
 		}
 
+		public void AddSeparatorBeforeRow(string rowName)
+		{
+			_lSepearatorsBefore.AddUnique(rowName);
+		}
+
 		public void AddSeparatorAfterRow(string rowName)
 		{
-			_lSepearators.AddUnique(rowName);
+			_lSepearatorsAfter.AddUnique(rowName);
 		}
 
 		private void SetFistColumnMaxLength(string token)
@@ -561,8 +679,9 @@ namespace Sinequa.Plugin
 			}
 			foreach (string row in _lRows)
 			{
+				if (_lSepearatorsBefore.Contains(row)) sb.AppendLine(GetLineSep());
 				sb.AppendLine(GetRow(row));
-				if (_lSepearators.Contains(row)) sb.AppendLine(GetLineSep());
+				if (_lSepearatorsAfter.Contains(row)) sb.AppendLine(GetLineSep());
 			}
 			sb.AppendLine(GetLineSep());
 			return sb.ToString();

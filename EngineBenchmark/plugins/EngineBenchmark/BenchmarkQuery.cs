@@ -83,8 +83,14 @@ namespace Sinequa.Plugin
 			this.cursorSizeBreakdown = new Dictionary<string, long>();
 		}
 
-		public bool Execute()
+		public bool Execute(bool simulate)
 		{
+			if (simulate)
+			{
+				Sys.LogWarning($@"{{{threadId}}} /!\ SIMULATE MODE - query will NOT be executed /!\");
+				return true;
+			}
+
 			//get engine client session
 			EngineClientFromPool();
 

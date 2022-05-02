@@ -2,6 +2,15 @@
 <Sinequa>
 	<Inherit>command</Inherit>
 	<Tab merge-type="merge" merge-id="general">
+		<Group merge-type="add" id="main_settings">
+			<Display>Lang("Settings")</Display>
+			<CheckBox>
+				<Display>{Lang("Simulate")}</Display>
+				<DataTag>CMD_MAIN_SIMULATE</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Simulate execution, output only logs. Queries are not send to the engines.")}</ToolTip></Icon>
+			</CheckBox>
+		</Group>
 		<Group merge-type="add" id="engines_settings">
 			<Display>Lang("Engines configuration")</Display>
 			<MultiEntity>

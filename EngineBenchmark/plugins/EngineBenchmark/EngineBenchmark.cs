@@ -19,7 +19,7 @@ namespace Sinequa.Plugin
 
 	public class EngineBenchmark : CommandPlugin
 	{
-		const string EngineBenchmarkVersion = "0.9.5 (beta)";
+		const string EngineBenchmarkVersion = "0.9.6 (beta)";
 
 		private EngineActivityManager _engineActivityManager;
 		private CmdConfigEngineBenchmark _conf;
@@ -106,7 +106,7 @@ namespace Sinequa.Plugin
 			}
 			Sys.Log($"----------------------------------------------------");
 
-			Parallel.ForEach(_conf.threadGroups.Values, new ParallelOptions { MaxDegreeOfParallelism = parallelThreadGroup }, (tGroup, threadGroupsLoopState) =>
+			ParallelLoopResult threadGroupsResult = Parallel.ForEach(_conf.threadGroups.Values, new ParallelOptions { MaxDegreeOfParallelism = parallelThreadGroup }, (tGroup, threadGroupsLoopState) =>
 			{
 				Thread threadGroupsThread = Thread.CurrentThread;
 				int threadGroupsThreadId = threadGroupsThread.ManagedThreadId;
@@ -115,7 +115,6 @@ namespace Sinequa.Plugin
 				{
 					Sys.LogError($"{{{threadGroupsThreadId}}} Cannot init Thread Group [{tGroup.name}]");
 					threadGroupsLoopState.Stop();
-					return;
 				}
 
 				tGroup.Start();
@@ -154,19 +153,17 @@ namespace Sinequa.Plugin
 					Sys.Log2(20, $"{{{threadGroupThreadId}}} Thread group [{tGroup.name}][{threadGroupIteration}] sleep [{sleepTime}]");
 					Thread.Sleep(sleepTime);
 
-					//get SQL query - SQL query variables have been replaced by parameters based on parameter strategy
-					string sql = tGroup.GetSQLQuery(out Dictionary<string, string> dParams);
-					Sys.Log2(20, $"{{{threadGroupThreadId}}} Thread group [{tGroup.name}][{threadGroupIteration}] sql [{sql}]");
 					//get Engine for EngineClient based on Engine Strategy
 					string engineName = tGroup.GetEngine();
-					Sys.Log2(20, $"{{{threadGroupThreadId}}} Thread group [{tGroup.name}][{threadGroupIteration}] engine [{engineName}]");
-					//Executy query
+					//get SQL query - SQL query variables have been replaced by parameters based on parameter strategy
+					string sql = tGroup.GetSQLQuery(out Dictionary<string, string> dParams);
 					Sys.Log2(10, $"{{{threadGroupThreadId}}} Thread group [{tGroup.name}][{threadGroupIteration}] prepare execute SQL on engine [{engineName}] with parameters " + String.Join(";", dParams.Select(x => $"[{ x.Key }]=[{x.Value}]").ToArray()));
 					DateTime dStart = DateTime.Now;
 
 					//execute SQL query
 					BenchmarkQuery query = new BenchmarkQuery(threadGroupThreadId, tGroup.name, threadGroupIteration, engineName, sql, tGroup);
-					query.Execute();
+					query.Execute(_conf.simulate);
+					Sys.Log2(20, $"{{{threadGroupThreadId}}} Thread group [{tGroup.name}][{threadGroupIteration}] sql [{sql}] on engine [{engineName}]");
 
 					DateTime dEnd = DateTime.Now;
 					Sys.Log($"{{{threadGroupThreadId}}} Thread group [{tGroup.name}][{threadGroupIteration}] execute SQL on engine [{engineName}], success [{query.success}] total query time [{Sys.TimerGetText(query.totalQueryTimer)}] processing time [{Sys.TimerGetText(query.processingTime)}]");
@@ -212,6 +209,8 @@ namespace Sinequa.Plugin
 				Sys.Log($"{{{threadGroupsThreadId}}} Thread Group [{tGroup.name}] stop");
 				Sys.Log($"----------------------------------------------------");
 			});
+
+			if (!threadGroupsResult.IsCompleted) return Return.Error;
 
 			return base.OnExecute();
 		}
@@ -447,6 +446,9 @@ namespace Sinequa.Plugin
 
 		public DateTime startTime { get; private set; }
 
+		//main
+		public bool simulate { get; private set; }
+
 		//engine config
 		public ListOf<CCEngine> lEngines { get; private set; }
 		public EngineStategy engineStategy { get; private set; }
@@ -534,6 +536,14 @@ namespace Sinequa.Plugin
 				Sys.LogError($"Cannot read configuration");
 				return false;
 			}
+
+			#region main
+			//simulate
+			dataTag = "CMD_MAIN_SIMULATE";
+			if (!DatatagExist(dataTag)) return false;
+			simulate = _XMLConf.ValueBoo(dataTag, false);
+            if (simulate) Sys.LogSetLevel(20);
+			#endregion
 
 			#region engines
 			//engines
@@ -993,6 +1003,8 @@ namespace Sinequa.Plugin
 
 		public void LogConfig()
 		{
+			Sys.Log($"----------------------------------------------------");
+			Sys.Log($"Simulate : [{simulate}]");
 			Sys.Log($"----------------------------------------------------");
 			Sys.Log($"Engines : [{String.Join(",", this.lEngines.Select(x => x.DisplayName).ToArray())}]");
 			Sys.Log($"Engine strategy : [{Enum.GetName(typeof(EngineStategy), this.engineStategy)}]");
