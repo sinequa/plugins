@@ -7,10 +7,31 @@
 	<Files>
 		<e>
 			<Name>EngineBenchmark.cs</Name>
+			<Comment>CommandPlugin</Comment>
+		</e>
+		<e>
+			<Name>EngineBenchmarkHelper.cs</Name>
+			<Comment></Comment>
+		</e>
+		<e>
+			<Name>ThreadGroup.cs</Name>
+			<Comment></Comment>
+		</e>
+		<e>
+			<Name>ThreadGroupOutput.cs</Name>
+			<Comment></Comment>
+		</e>
+		<e>
+			<Name>EngineActivityManager.cs</Name>
+			<Comment></Comment>
+		</e>
+		<e>
+			<Name>BenchmarkQuery.cs</Name>
 			<Comment></Comment>
 		</e>
 	</Files>
-	<IsDebug>true</IsDebug>
+	<IsDebug>false</IsDebug>
 	<ExternalDllPath></ExternalDllPath>
 	<UseLegacyCompiler>false</UseLegacyCompiler>
+	<Reference>%%SystemXmlLinqDll%%</Reference>
 </Sinequa>
