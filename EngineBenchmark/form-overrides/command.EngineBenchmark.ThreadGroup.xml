@@ -1,0 +1,103 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sinequa>
+	<TitleData>{dataname} - {data.dataroot:CMD_THREAD_GROUP_GRID_NAME}</TitleData>
+	<Include File="general.menus"></Include>
+	<Menu merge-type="merge" merge-id="MenuAdmin">
+		<SubMenu merge-type="merge" merge-id="subMenuBack">
+			<ActionUrl merge-type="replace" merge-id="Url" id="Url">RecursiveFormParentUrl</ActionUrl>
+		</SubMenu>
+		<SubMenu merge-type="delete" merge-id="subMenuAdvanced"></SubMenu>
+	</Menu>
+	<Tab merge-type="merge" merge-id="general">
+		<Group merge-type="add" id="thread_group_settings">
+			<Display>Thread group [{data.dataroot:CMD_THREAD_GROUP_GRID_NAME}] configuration</Display>
+			<Text>
+                <Display>{Lang("Name")}</Display>
+                <Text>{data.dataroot:CMD_THREAD_GROUP_GRID_NAME}</Text>
+            </Text>
+			<Text>
+                <Display>{Lang("SQL Query")}</Display>
+				<Icon><ToolTip>{Lang("Support only select statment. You can use variables in this field with the following syntax {{myvar}} where myvar is the variable name. These variables will be replaced by values from the "parameter file". NOTE: the curly brackets must enclose your variable name. ")}</ToolTip></Icon>
+			</Text>
+			<MonacoEditor>
+				<Height>300</Height>
+				<Language>sql</Language>
+				<DataTag>dataroot:CMD_THREAD_GROUP_GRID_SQL</DataTag>
+				<Options>{wordWrap: 'on'}</Options>
+			</MonacoEditor>
+			<Entity>
+				<Form>file.custom</Form>
+				<DataType>file.custom/customfile</DataType>
+				<ListName>listcustomfile</ListName>
+				<Display>{Lang("Parameter file")}</Display>
+				<DataTag>dataroot:CMD_THREAD_GROUP_GRID_PARAM_CUSTON_FILE</DataTag>
+				<Icon><ToolTip>{Lang("Custom file containing the variable name in the header (first line). Each subsequent line will represent a set of values.")}</ToolTip></Icon>
+			</Entity>
+			<Entry>
+				<Display>{Lang("Separator")}</Display>
+				<DataTag>dataroot:CMD_THREAD_GROUP_GRID_PARAM_CUSTON_FILE_SEP</DataTag>
+				<Icon><ToolTip>{Lang("Separator used in "Parameter file". Type: char. Default: ;")}</ToolTip></Icon>
+			</Entry>
+			<Combo>
+				<Display>{Lang("Parameter strategy")}</Display>
+				<DataTag>dataroot:CMD_THREAD_GROUP_GRID_PARAM_STRATEGY</DataTag>
+				<ListName>listparamstrategy</ListName>
+				<Icon><ToolTip>{Lang("Strategy to read values from "Parameter file". Values are pulled by line, the strategy define what line values is used to replace the variables in the SQL. Ordered: threads will read lines from top to bottom. Random: read in random order")}</ToolTip></Icon>
+			</Combo>
+			<CheckBox>
+				<Display>{Lang("User ACLs")}</Display>
+				<DataTag>dataroot:CMD_THREAD_GROUP_GRID_USERS_ACL</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("If checked, add user ACLs in the SQL query. Using the same strategy as defined for "Parameter strategy" (Ordered or Random)")}</ToolTip></Icon>
+			</CheckBox>
+			<Entry>
+				<Display>{Lang("Threads")}</Display>
+				<DataTag>dataroot:CMD_THREAD_GROUP_GRID_THREADS_NUMBER</DataTag>
+				<Icon><ToolTip>{Lang("Number of parallel threads, each thread will execute a SQL query. Default: 5")}</ToolTip></Icon>
+			</Entry>
+			<Entry>
+				<Display>{Lang("Thread sleep (min;max)")}</Display>
+				<DataTag>dataroot:CMD_THREAD_GROUP_GRID_THREADS_SLEEP</DataTag>
+				<Icon><ToolTip>{Lang("Define min and max boundaries in seconds before a thread execute SQL query. Values are in seconds. Syntax: min;max. Default: 3;10 ")}</ToolTip></Icon>
+			</Entry>
+			<Entry>
+				<Display>{Lang("Execution time")}</Display>
+				<DataTag>dataroot:CMD_THREAD_GROUP_GRID_MAX_TIME</DataTag>
+				<Icon><ToolTip>{Lang("Maximum execution time in seconds. Once execution time is reached, stop all threads execution. Default: 60. -1 for infinite")}</ToolTip></Icon>
+			</Entry>
+			<Entry>
+				<Display>{Lang("Max iterations")}</Display>
+				<DataTag>dataroot:CMD_THREAD_GROUP_GRID_MAX_ITERATION</DataTag>
+				<Icon><ToolTip>{Lang("Maximun number of iterration (SQL queries executed). Once max iterations is reached, stop all threads execution. Default: 100. -1 for infinite")}</ToolTip></Icon>
+			</Entry>
+			<CheckBox>
+				<Display>{Lang("Disable Fulltext cache")}</Display>
+				<DataTag>dataroot:CMD_THREAD_GROUP_GRID_FULLTEXT_CACHE</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Disable indexes FullText cache by adding 'using cache 0' to the SQL query")}</ToolTip></Icon>
+			</CheckBox>
+			<CheckBox>
+				<Display>{Lang("Disable DB cache")}</Display>
+				<DataTag>dataroot:CMD_THREAD_GROUP_GRID_DB_CACHE</DataTag>
+				<DefaultValue>false</DefaultValue>
+				<Icon><ToolTip>{Lang("Disable indexes DataBase cache by adding 'csf=1' to the SQL query Searchparameters")}</ToolTip></Icon>
+			</CheckBox>
+		</Group>
+	</Tab>
+	<!-- LISTS -->
+	<List merge-type="add" id="enginestartegy">
+		<Name>enginestartegy</Name>
+		<Item><Name>First available</Name><Value>First_available</Value></Item>
+		<Item><Name>Random</Name><Value>Random</Value></Item>
+	</List>
+	<List merge-type="add" id="listparamstrategy">
+		<Name>listparamstrategy</Name>
+		<Item><Name>Ordered</Name><Value>Ordered</Value></Item>
+		<Item><Name>Random</Name><Value>Random</Value></Item>
+	</List>
+	<List merge-type="add" id="listsecuritysyntax">
+		<Name>listsecuritysyntax</Name>
+		<Item><Name>Legacy</Name><Value>Legacy</Value></Item>
+		<Item><Name>Engine</Name><Value>Engine</Value></Item>
+	</List>
+</Sinequa>

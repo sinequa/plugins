@@ -172,7 +172,7 @@ namespace Sinequa.Plugin
 		{
 			Stopwatch sw = new Stopwatch();
 			sw.Start();
-			_client = Toolbox.EngineClientFromPool(engineName);
+			_client = Toolbox.EngineClientFromPool(engineName, $"Thread group [{threadGroupName}][{iteration}]");
 			sw.Stop();
 			clientFromPoolTimer = sw.ElapsedMilliseconds;
 			AddToTotalTime(clientFromPoolTimer);

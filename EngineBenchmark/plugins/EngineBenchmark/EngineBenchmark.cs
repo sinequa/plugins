@@ -19,7 +19,7 @@ namespace Sinequa.Plugin
 
 	public class EngineBenchmark : CommandPlugin
 	{
-		const string EngineBenchmarkVersion = "0.9.6 (beta)";
+		const string EngineBenchmarkVersion = "0.9.8 (beta)";
 
 		private EngineActivityManager _engineActivityManager;
 		private CmdConfigEngineBenchmark _conf;
@@ -54,6 +54,17 @@ namespace Sinequa.Plugin
 			_conf = new CmdConfigEngineBenchmark(this);
 			if (!_conf.LoadConfig()) return Return.Error;
 
+			//command output log folder
+			if (!Toolbox.CreateDir(_conf.outputFolderPath)) return Return.Error;
+
+			//dump all usefull info
+			// - engines config
+			if (_conf.outputEnvConfEngines) if (!Toolbox.DumpEnginesConfig(_conf.outputFolderPath)) return Return.Error;
+			// - indexes config
+			if (_conf.outputEnvConfIndexes) if (!Toolbox.DumpIndexesConfig(_conf.outputFolderPath)) return Return.Error;
+			// - indexes dir content
+			if (_conf.outputEnvIndexesDir) if (!Toolbox.DumpEnginesIndexDir(_conf.outputFolderPath)) return Return.Error;
+			
 			//load engines status for all Engines in the Sinequa Grid. In case of brokering, other Engines than the ones defined in the "engine" list can be used
 			UpdateStatus(StatusType.EngineStatus);
 			lECSStart = EngineStatusHelper.GetEnginesStatus(CC.Current.Engines.ToList());
@@ -71,9 +82,6 @@ namespace Sinequa.Plugin
 				Sys.Log($"Start loading configuration and domains");
 				if (!Application.InitWith(Application.Feature.Default | Application.Feature.Domains)) return Return.Error;
 			}
-
-			//command output log folder
-			if (!Toolbox.CreateDir(_conf.outputFolderPath)) return Return.Error;
 
 			//start PeriodicEngineActivity task
 			if (_conf.activityMonitoring)
@@ -106,16 +114,20 @@ namespace Sinequa.Plugin
 			}
 			Sys.Log($"----------------------------------------------------");
 
+			//Init all threads groups
+			foreach (ThreadGroup tGroup in _conf.threadGroups.Values)
+			{
+				if (!tGroup.Init(this, _conf))
+				{
+					Sys.LogError($"Cannot init Thread Group [{tGroup.name}]");
+					return Return.Error;
+				}
+			}
+
 			ParallelLoopResult threadGroupsResult = Parallel.ForEach(_conf.threadGroups.Values, new ParallelOptions { MaxDegreeOfParallelism = parallelThreadGroup }, (tGroup, threadGroupsLoopState) =>
 			{
 				Thread threadGroupsThread = Thread.CurrentThread;
 				int threadGroupsThreadId = threadGroupsThread.ManagedThreadId;
-
-				if (!tGroup.Init(this, _conf))
-				{
-					Sys.LogError($"{{{threadGroupsThreadId}}} Cannot init Thread Group [{tGroup.name}]");
-					threadGroupsLoopState.Stop();
-				}
 
 				tGroup.Start();
 				Sys.Log($"----------------------------------------------------");
@@ -337,7 +349,7 @@ namespace Sinequa.Plugin
 			foreach (CCEngine engine in _conf.lEngines)
 			{
 				string engineName = engine.FullName;
-				EngineClient client = Toolbox.EngineClientFromPool(engineName);
+				EngineClient client = Toolbox.EngineClientFromPool(engineName, $"CheckNormalIndexesUpdate");
 
 				//get the list of "normal" indexes (Normal / NormalReplicated / NormalReplicatedQueue) and Enabled
 				List<CCIndex> lNormalIndexes = engine.Indexes.Where(x => x.IsNormalSchema && x.Enabled).ToList();
@@ -471,6 +483,10 @@ namespace Sinequa.Plugin
 				return Str.PathAdd(_outputFolderPath, _engineBenchmark.Command.Name + "_" + startTime.ToString("yyyy-MM-dd HH-mm-ss"));
 			}
 		}
+		public bool outputEnvConfEngines { get; private set; }
+		public bool outputEnvConfIndexes { get; private set; }
+		public bool outputEnvIndexesDir { get; private set; }
+
 		public char outputCSVSeparator { get; private set; }
 		public bool outputQueries { get; private set; }
 		public bool outputSQLQuery { get; private set; }
@@ -489,7 +505,8 @@ namespace Sinequa.Plugin
 		public bool outputIQLBrokering { get; private set; }
 		public bool outputIQLDistributionsCorrelations { get; private set; }
 		public bool outputIQLAcqRLk { get; private set; }
-		public bool outputRFMBoost { get; private set; }
+		public bool outputIQLRFMBoost { get; private set; }
+		public bool outputIQLNeuralSearch { get; private set; }
 
 		//cursor size breakdown
 		public bool outputCursorSizeBreakdown { get; private set; }
@@ -708,8 +725,14 @@ namespace Sinequa.Plugin
 					return false;
 				}
 
+				//Disable FullText cache
+				bool disableFullTextCache = itemGridThreadGroup.ValueBoo("CMD_THREAD_GROUP_GRID_FULLTEXT_CACHE", false);
+
+				//Disable DB cache
+				bool disableDBCache = itemGridThreadGroup.ValueBoo("CMD_THREAD_GROUP_GRID_DB_CACHE", false);
+
 				ThreadGroup tg = new ThreadGroup(name, SQL, paramCustomFile, fileSep, parameterStrategy, usersACL, threadNumber,
-					threadSleepMin, threadSleepMax, maxExecutionTime, maxIterations);
+					threadSleepMin, threadSleepMax, maxExecutionTime, maxIterations, disableFullTextCache, disableDBCache);
 				threadGroups.Add(name, tg);
 			}
 			#endregion
@@ -807,6 +830,25 @@ namespace Sinequa.Plugin
 			outputCSVSeparator = _XMLConf.ValueChar(dataTag, '\t');
 			#endregion
 
+			#region outputEnvironment
+
+			//Engines configuration
+			dataTag = "CMD_OUTPUT_ENV_CONF_ENGINES";
+			if (!DatatagExist(dataTag)) return false;
+			outputEnvConfEngines = _XMLConf.ValueBoo(dataTag, true);
+
+			//Indexes configuration
+			dataTag = "CMD_OUTPUT_ENV_CONF_INDEXES";
+			if (!DatatagExist(dataTag)) return false;
+			outputEnvConfIndexes = _XMLConf.ValueBoo(dataTag, true);
+
+			//Indexes dir
+			dataTag = "CMD_OUTPUT_ENV_IDX_DIR_FILES";
+			if (!DatatagExist(dataTag)) return false;
+			outputEnvIndexesDir = _XMLConf.ValueBoo(dataTag, true);
+
+			#endregion
+
 			#region output queries
 			//output queries
 			dataTag = "CMD_OUTPUT_QUERIES";
@@ -881,7 +923,12 @@ namespace Sinequa.Plugin
 			//RFM Boost
 			dataTag = "CMD_OUTPUT_INTERNALQUERYLOG_RFM_BOOST";
 			if (!DatatagExist(dataTag)) return false;
-			outputRFMBoost = _XMLConf.ValueBoo(dataTag, false);
+			outputIQLRFMBoost = _XMLConf.ValueBoo(dataTag, false);
+
+			//Neural Search
+			dataTag = "CMD_OUTPUT_INTERNALQUERYLOG_NEURAL_SEARCH";
+			if (!DatatagExist(dataTag)) return false;
+			outputIQLNeuralSearch = _XMLConf.ValueBoo(dataTag, false);
 
 			//if any outputIQL*, outputIQL = true
 			if (	
@@ -892,7 +939,8 @@ namespace Sinequa.Plugin
 				outputIQLDistributionsCorrelations ||
 				outputIQLThreadCount || 
 				outputIQLAcqRLk || 
-				outputRFMBoost)
+				outputIQLRFMBoost ||
+				outputIQLNeuralSearch)
 			{
 				outputIQL = true;
 			}
@@ -1026,6 +1074,9 @@ namespace Sinequa.Plugin
 			}
 			Sys.Log($"Output folder path : [{this._outputFolderPath}]");
 			Sys.Log($"Output CSV separator : [{this.outputCSVSeparator}]");
+			Sys.Log($"Output environment - Engines configuration : [{this.outputEnvConfEngines}]");
+			Sys.Log($"Output environment - Indexes configuration : [{this.outputEnvConfIndexes}]");
+			Sys.Log($"Output environment - Indexes directory files : [{this.outputEnvIndexesDir}]");
 			Sys.Log($"Output queries : [{this.outputQueries}]");
 			Sys.Log($"Output SQL query : [{this.outputSQLQuery}]");
 			Sys.Log($"Output query timers : [{this.outputQueryTimers}]");
@@ -1040,7 +1091,8 @@ namespace Sinequa.Plugin
 			Sys.Log($"Output internal query log - distributions & correlations timers : [{this.outputIQLDistributionsCorrelations}]");
 			Sys.Log($"Output internal query log - threads count : [{this.outputIQLThreadCount}]");
 			Sys.Log($"Output internal query log - AcqRLk timers : [{this.outputIQLAcqRLk}]");
-			Sys.Log($"Output internal query log - RFMBoost timers : [{this.outputRFMBoost}]");
+			Sys.Log($"Output internal query log - RFMBoost timers : [{this.outputIQLRFMBoost}]");
+			Sys.Log($"Output internal query log - Neural Search timers : [{this.outputIQLNeuralSearch}]");
 			Sys.Log($"----------------------------------------------------");
 			Sys.Log($"Output Cursor Size Breakdown : [{this.outputCursorSizeBreakdown}]");
 			Sys.Log($"Output Cursor Size empty columns : [{this.outputCursorSizeEmptyColumns}]");

@@ -45,6 +45,9 @@ namespace Sinequa.Plugin
 		public int threadSleepMax { get; private set; }
 		public long maxExecutionTime { get; private set; }
 		public int maxIteration { get; private set; }
+		public bool disableFullTextCache { get; private set; }
+		public bool disableDBCache { get; private set; }
+
 
 		private readonly object syncLock = new object();
 		private bool _paramsLoaded = false;
@@ -187,7 +190,15 @@ namespace Sinequa.Plugin
 			IQLFetchingDBQuery,
 			IQLDistribution,
 			IQLCorrelation,
-			IQLAcqRLk
+			IQLAcqRLk,
+			IQLANNIndexQueryTask,
+			IQLTextCompressorDecompressCount,
+			IQLTextCompressorDecompressAVG,
+			IQLFillPassagesTextRWA,
+			IQLAnswerFinderProcessing,
+			IQLPRMCalculation,
+			IQLProcessPassageRanking,
+			IQLMergeContexts
 		}
 
 		public enum StatType
@@ -201,7 +212,7 @@ namespace Sinequa.Plugin
 		#endregion
 
 		public ThreadGroup(string name, string sql, CCFile paramCustomFile, char fileSep, ParameterStrategy paramStrategy,
-			bool usersACL, int threadNumber, int threadSleepMin, int threadSleepMax, int maxExecutionTime, int maxIteration)
+			bool usersACL, int threadNumber, int threadSleepMin, int threadSleepMax, int maxExecutionTime, int maxIteration, bool disableFullTextCache, bool disableDBCache)
 		{
 			this.name = name;
 			this.sql = sql;
@@ -214,6 +225,8 @@ namespace Sinequa.Plugin
 			this.threadSleepMax = threadSleepMax * 1000;    //seconds to milliseconds
 			this.maxExecutionTime = maxExecutionTime == -1 ? maxExecutionTime : maxExecutionTime * 1000;    //seconds to milliseconds
 			this.maxIteration = maxIteration;
+			this.disableFullTextCache = disableFullTextCache;
+			this.disableDBCache = disableDBCache;
 			this.state = ThreadGroupState.none;
 			this._ctxt.Doc = new IDocImpl();
 		}
@@ -243,6 +256,8 @@ namespace Sinequa.Plugin
 			Sys.Log($"Thread Number = [{this.threadNumber}]");
 			Sys.Log($"Thread Sleep Min = [{this.threadSleepMin}] ms");
 			Sys.Log($"Thread Sleep Max = [{this.threadSleepMax}] ms");
+			Sys.Log($"Disable FullText cache = [{this.disableFullTextCache}]");
+			Sys.Log($"Disable DB cache = [{this.disableDBCache}]");
 			if (this.maxExecutionTime == -1) Sys.Log($"Max Execution Time = [{this.maxExecutionTime}] (infinite)");
 			else Sys.Log($"Max Execution Time = [{this.maxExecutionTime}] ms");
 			if (this.maxIteration == -1) Sys.Log($"Max Iteration = [{this.maxIteration}] (infinite)");
@@ -412,10 +427,14 @@ namespace Sinequa.Plugin
 
 		private bool LoadUsersACLs(CCDomain domain, ListStr lUsers)
 		{
+			if (_conf.securitySyntax == SecuritySyntax.Engine && !Sys.SecurityInEngine()) Sys.SetSecurityInEngine(true);
+			else if (_conf.securitySyntax == SecuritySyntax.Legacy && Sys.SecurityInEngine()) Sys.SetSecurityInEngine(false);
+
 			foreach (string userNameOrId in lUsers)
 			{
-				if (!Toolbox.GetUserRightsAsSqlStr(userNameOrId, domain.Name, _conf.securitySyntax, out CCPrincipal user, out string userRights)) return false;
-				if (!_dUsersACL.TryAdd(user, userRights)) return false;
+				if (!Toolbox.GetUserRightsAsSqlStr(userNameOrId, domain.Name,out CCPrincipal principal, out string userRights)) return false;
+				if (!_dUsersACL.Keys.Any(_ => _.Id == principal.Id)) Sys.LogWarning($"Principal ID [{principal.Id}] principal Name [{principal.Name}] from domain [{domain.Name}] already exist");
+				else _dUsersACL.TryAdd(principal, userRights);
 			}
 			return true;
 		}
@@ -499,19 +518,52 @@ namespace Sinequa.Plugin
 			//add internalquerylog
 			if (_conf.outputIQL || _conf.dumpIQL)
 			{
-				if (!sqlWithParams.Contains("internalquerylog"))
+				if (sqlWithParams.IndexOf("internalquerylog", StringComparison.InvariantCultureIgnoreCase) < 0)
 				{
-					sqlWithParams = Str.Replace(sqlWithParams, "select", "select internalquerylog,");
+					sqlWithParams = Str.Replace(sqlWithParams, "select", "select internalquerylog,", true);
 				}
 			}
 			//add internalqueryanalysis
 			if (_conf.dumpIQA)
             {
-				if (!sqlWithParams.Contains("internalqueryanalysis"))
+				if (sqlWithParams.IndexOf("internalqueryanalysis", StringComparison.InvariantCultureIgnoreCase) < 0)
 				{
-					sqlWithParams = Str.Replace(sqlWithParams, "select", "select internalqueryanalysis,");
+					sqlWithParams = Str.Replace(sqlWithParams, "select", "select internalqueryanalysis,", true);
 				}
 			}
+
+            //disable fulltext cache
+            if (disableFullTextCache)
+            {
+                if (sqlWithParams.IndexOf("using cache 0", StringComparison.InvariantCultureIgnoreCase) < 0)
+                {
+					if (sqlWithParams.IndexOf(" skip ", StringComparison.InvariantCultureIgnoreCase) < 0)
+					{
+						sqlWithParams += " using cache 0";
+					}
+					else
+					{
+						sqlWithParams = Str.Replace(sqlWithParams, " skip ", " using cache 0 skip ", true);
+					}
+					
+				}
+            }
+			//disable DB cache
+			if (disableDBCache)
+			{
+				if (sqlWithParams.IndexOf("csf=1", StringComparison.InvariantCultureIgnoreCase) < 0)
+				{
+					if(sqlWithParams.IndexOf("searchparameters", StringComparison.InvariantCultureIgnoreCase) < 0)
+                    {
+						sqlWithParams = Str.Replace(sqlWithParams, " where ", " where Searchparameters='csf=1'", true);
+                    }
+                    else
+                    {
+						sqlWithParams = Str.Replace(sqlWithParams, "Searchparameters='", "Searchparameters='csf=1;", true);
+					}
+				}
+			}
+
 
 			//evaluate value patterns
 			sqlWithParams = IDocHelper.GetValuePattern(_ctxt, paramSet, sqlWithParams);
@@ -777,6 +829,14 @@ namespace Sinequa.Plugin
 					case MultiStatProperty.IQLAcqRLk: lFlatten = l.SelectMany(x => x.IQLAcqRLk).AsParallel().ToList(); break;
 					case MultiStatProperty.IQLDistribution: lFlatten = l.SelectMany(x => x.IQLDistribution).AsParallel().ToList(); break;
 					case MultiStatProperty.IQLCorrelation: lFlatten = l.SelectMany(x => x.IQLCorrelation).AsParallel().ToList(); break;
+					case MultiStatProperty.IQLANNIndexQueryTask: lFlatten = l.SelectMany(x => x.IQLANNIndexQueryTask).AsParallel().ToList(); break;
+					case MultiStatProperty.IQLTextCompressorDecompressCount: lFlatten = l.SelectMany(x => x.IQLTextCompressorDecompressCount).AsParallel().ToList(); break;
+					case MultiStatProperty.IQLTextCompressorDecompressAVG: lFlatten = l.SelectMany(x => x.IQLTextCompressorDecompressAVG).AsParallel().ToList(); break;
+					case MultiStatProperty.IQLFillPassagesTextRWA: lFlatten = l.SelectMany(x => x.IQLFillPassagesTextRWA).AsParallel().ToList(); break;
+					case MultiStatProperty.IQLAnswerFinderProcessing: lFlatten = l.SelectMany(x => x.IQLAnswerFinderProcessing).AsParallel().ToList(); break;
+					case MultiStatProperty.IQLPRMCalculation: lFlatten = l.SelectMany(x => x.IQLPRMCalculation).AsParallel().ToList(); break;
+					case MultiStatProperty.IQLProcessPassageRanking: lFlatten = l.SelectMany(x => x.IQLProcessPassageRanking).AsParallel().ToList(); break;
+					case MultiStatProperty.IQLMergeContexts: lFlatten = l.SelectMany(x => x.IQLMergeContexts).AsParallel().ToList(); break;
 				}
 				_multiStatPropertyCache.Add(p, lFlatten);
 			}
@@ -1025,7 +1085,7 @@ namespace Sinequa.Plugin
 					logTableTimers.AddUniqueItem("curosrNetworkAndDeserialization", "unit", "ms");
 					logTableTimers.AddItems(GetTableRowSimpleStat(SimpleStatProperty.curosrNetworkAndDeserialization, _statsFormatMs));
 				}
-                if (conf.outputRFMBoost)
+                if (conf.outputIQLRFMBoost)
                 {
 					logTableTimers.AddUniqueItem("RFMBoostExact", "unit", "ms");
 					logTableTimers.AddItems(GetTableRowSimpleStat(SimpleStatProperty.RFMBoostExact, _statsFormatMs));
@@ -1072,7 +1132,7 @@ namespace Sinequa.Plugin
 					List<(string engine, string elem, double duration)> lElems = GetOutputMultiStatUsingCache(MultiStatProperty.IQLExecuteDBQuery, x.engine, x.index);
 					int elemCount = lElems == null ? 0 : lElems.Count();
 					logTableQueryIQLExecuteDBQueryTimers.AddUniqueItem($"[{x.index}] [{x.engine}]", "count", elemCount.ToString(_statsFormatCount));
-					//usual stats
+					//ExecuteDBQuery
 					logTableQueryIQLExecuteDBQueryTimers.AddUniqueItem($"[{x.index}] [{x.engine}]", "unit", "ms");
 					logTableQueryIQLExecuteDBQueryTimers.AddItems(GetTableRowMultiStat(MultiStatProperty.IQLExecuteDBQuery, x.engine, x.index, _statsFormatMs));
 					//FetchingDBQuery
@@ -1093,10 +1153,73 @@ namespace Sinequa.Plugin
 
 				foreach ((string index, string engine) x in lSortedEngineIndex)
 				{
+					logTableQueryIQLAcqRLkTimers.AddUniqueItem($"[{x.index}] [{x.engine}]", "unit", "ms");
 					logTableQueryIQLAcqRLkTimers.AddItems(GetTableRowMultiStat(MultiStatProperty.IQLAcqRLk, x.engine, x.index, _statsFormatMs));
 				}
 
 				logTableQueryIQLAcqRLkTimers.SysLog();
+			}
+
+
+			if (conf.outputIQLNeuralSearch)
+			{
+				//ANNIndexQuery Task
+				LogTable logTableQueryIQLANNIndexQueryTask = new LogTable($"[{name}] ANNIndexQuery Task");
+				logTableQueryIQLANNIndexQueryTask.SetInnerColumnSpaces(1, 1);
+				//TextCompressor::Decompress
+				LogTable logTableQueryIQLTextCompressorDecompress = new LogTable($"[{name}] TextCompressor::Decompress AVG");
+				logTableQueryIQLTextCompressorDecompress.SetInnerColumnSpaces(1, 1);
+				//FillPassagesTextRWA
+				LogTable logTableQueryIQLFillPassagesTextRWA = new LogTable($"[{name}] FillPassagesTextRWA");
+				logTableQueryIQLFillPassagesTextRWA.SetInnerColumnSpaces(1, 1);
+				//AnswerFinderProcessing
+				LogTable logTableQueryIQLAnswerFinderProcessing = new LogTable($"[{name}] AnswerFinderProcessing");
+				logTableQueryIQLAnswerFinderProcessing.SetInnerColumnSpaces(1, 1);
+				//PRM Calculation
+				LogTable logTableQueryIQLPRMCalculation = new LogTable($"[{name}] PRMCalculation");
+				logTableQueryIQLPRMCalculation.SetInnerColumnSpaces(1, 1);
+				//ProcessPassageRanking
+				LogTable logTableQueryIQLProcessPassageRanking = new LogTable($"[{name}] ProcessPassageRanking");
+				logTableQueryIQLProcessPassageRanking.SetInnerColumnSpaces(1, 1);
+				//MergeContexts
+				LogTable logTableQueryIQLMergeContexts = new LogTable($"[{name}] MergeContexts");
+				logTableQueryIQLMergeContexts.SetInnerColumnSpaces(1, 1);
+
+				foreach ((string index, string engine) x in lSortedEngineIndex)
+				{
+					logTableQueryIQLANNIndexQueryTask.AddUniqueItem($"[{x.index}] [{x.engine}]", "unit", "ms");
+					logTableQueryIQLANNIndexQueryTask.AddItems(GetTableRowMultiStat(MultiStatProperty.IQLANNIndexQueryTask, x.engine, x.index, _statsFormatMs));
+
+					//add count column
+					List<(string engine, string elem, double duration)> lElems = GetOutputMultiStatUsingCache(MultiStatProperty.IQLTextCompressorDecompressCount, x.engine, x.index);
+					int elemCount = lElems == null ? 0 : lElems.Count();
+					logTableQueryIQLTextCompressorDecompress.AddUniqueItem($"[{x.index}] [{x.engine}]", "count", elemCount.ToString(_statsFormatCount));
+					logTableQueryIQLTextCompressorDecompress.AddUniqueItem($"[{x.index}] [{x.engine}]", "unit", "ms");
+					logTableQueryIQLTextCompressorDecompress.AddItems(GetTableRowMultiStat(MultiStatProperty.IQLTextCompressorDecompressAVG, x.engine, x.index, _statsFormatMs));
+
+					logTableQueryIQLFillPassagesTextRWA.AddUniqueItem($"[{x.index}] [{x.engine}]", "unit", "ms");
+					logTableQueryIQLFillPassagesTextRWA.AddItems(GetTableRowMultiStat(MultiStatProperty.IQLFillPassagesTextRWA, x.engine, x.index, _statsFormatMs));
+
+					logTableQueryIQLAnswerFinderProcessing.AddUniqueItem($"[{x.index}] [{x.engine}]", "unit", "ms");
+					logTableQueryIQLAnswerFinderProcessing.AddItems(GetTableRowMultiStat(MultiStatProperty.IQLAnswerFinderProcessing, x.engine, x.index, _statsFormatMs));
+
+					logTableQueryIQLPRMCalculation.AddUniqueItem($"[{x.index}] [{x.engine}]", "unit", "ms");
+					logTableQueryIQLPRMCalculation.AddItems(GetTableRowMultiStat(MultiStatProperty.IQLPRMCalculation, x.engine, x.index, _statsFormatMs));
+
+					logTableQueryIQLProcessPassageRanking.AddUniqueItem($"[{x.index}] [{x.engine}]", "unit", "ms");
+					logTableQueryIQLProcessPassageRanking.AddItems(GetTableRowMultiStat(MultiStatProperty.IQLProcessPassageRanking, x.engine, x.index, _statsFormatMs));
+
+					logTableQueryIQLMergeContexts.AddUniqueItem($"[{x.index}] [{x.engine}]", "unit", "ms");
+					logTableQueryIQLMergeContexts.AddItems(GetTableRowMultiStat(MultiStatProperty.IQLMergeContexts, x.engine, x.index, _statsFormatMs));
+				}
+
+				logTableQueryIQLANNIndexQueryTask.SysLog();
+				logTableQueryIQLTextCompressorDecompress.SysLog();
+				logTableQueryIQLFillPassagesTextRWA.SysLog();
+				logTableQueryIQLAnswerFinderProcessing.SysLog();
+				logTableQueryIQLPRMCalculation.SysLog();
+				logTableQueryIQLProcessPassageRanking.SysLog();
+				logTableQueryIQLMergeContexts.SysLog();
 			}
 
 			if (conf.outputIQLDistributionsCorrelations)
