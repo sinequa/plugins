@@ -148,6 +148,19 @@
 				<ListName>listdomain</ListName>
 				<Icon><ToolTip>{Lang("Security domain used to get users id or user name")}</ToolTip></Icon>
 			</Combo>
+			<Combo>
+				<Display>{Lang("Security input")}</Display>
+				<DataTag>CMD_SECURITY_INPUT</DataTag>
+				<ListName>listsecurityinput</ListName>
+				<Icon><ToolTip>{Lang("Select input for the users. Can be read from the Table below or from the user file")}</ToolTip></Icon>
+				<DefaultValue>Table</DefaultValue>
+			</Combo>
+			<Combo>
+				<Display>{Lang("Users parameter file")}</Display>
+				<DataTag>CMD_USERS_PARAMETER_FILE</DataTag>
+				<ListName>listcustomfile</ListName>
+				<Icon><ToolTip>{Lang("Custom file containing list of User ID/Name. Each line will represent a set of User ID or User Name")}</ToolTip></Icon>
+			</Combo>
 			<Grid>
 				<DataTag>CMD_USERS_GRID</DataTag>
 				<Col>
@@ -415,5 +428,10 @@
 		<Name>listsecuritysyntax</Name>
 		<Item><Name>Legacy</Name><Value>Legacy</Value></Item>
 		<Item><Name>Engine</Name><Value>Engine</Value></Item>
+	</List>
+	<List merge-type="add" id="listsecurityinput">
+		<Name>listsecurityinput</Name>
+		<Item><Name>Table</Name><Value>Table</Value></Item>
+		<Item><Name>File</Name><Value>File</Value></Item>
 	</List>
 </Sinequa>

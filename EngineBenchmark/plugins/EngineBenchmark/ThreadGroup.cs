@@ -433,7 +433,7 @@ namespace Sinequa.Plugin
 			foreach (string userNameOrId in lUsers)
 			{
 				if (!Toolbox.GetUserRightsAsSqlStr(userNameOrId, domain.Name,out CCPrincipal principal, out string userRights)) return false;
-				if (!_dUsersACL.Keys.Any(_ => _.Id == principal.Id)) Sys.LogWarning($"Principal ID [{principal.Id}] principal Name [{principal.Name}] from domain [{domain.Name}] already exist");
+				if (_dUsersACL.Count > 0 && !_dUsersACL.Keys.Any(_ => _.Id == principal.Id)) Sys.LogWarning($"Principal ID [{principal.Id}] principal Name [{principal.Name}] from domain [{domain.Name}] already exist");
 				else _dUsersACL.TryAdd(principal, userRights);
 			}
 			return true;

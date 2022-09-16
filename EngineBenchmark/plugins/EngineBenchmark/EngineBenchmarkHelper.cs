@@ -30,6 +30,12 @@ namespace Sinequa.Plugin
 		Engine
 	}
 
+	public enum SecurityInput
+	{
+		Table,
+		File
+	}
+
 	public static class Toolbox
 	{
 		//Get engine client

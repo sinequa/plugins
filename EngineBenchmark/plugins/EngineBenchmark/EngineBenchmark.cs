@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -49,7 +50,9 @@ namespace Sinequa.Plugin
 
 		public override Return OnPreExecute()
 		{
-			UpdateStatus(StatusType.LoadConfig);
+			
+
+            UpdateStatus(StatusType.LoadConfig);
 			//load and check configuration (form override)
 			_conf = new CmdConfigEngineBenchmark(this);
 			if (!_conf.LoadConfig()) return Return.Error;
@@ -136,8 +139,9 @@ namespace Sinequa.Plugin
 
 				Parallel.ForEach(Infinite(tGroup), new ParallelOptions { MaxDegreeOfParallelism = tGroup.threadNumber }, (ignore, threadGroupLoopState) =>
 				{
-					Thread threadGroupThread = Thread.CurrentThread;
-					int threadGroupThreadId = threadGroupThread.ManagedThreadId;
+                    Thread threadGroupThread = Thread.CurrentThread;
+                    Thread.CurrentThread.CurrentCulture = new CultureInfo("en-US");
+                    int threadGroupThreadId = threadGroupThread.ManagedThreadId;
 
 					//increment number iterations
 					int threadGroupIteration = tGroup.IncrementIterations();
@@ -448,6 +452,7 @@ namespace Sinequa.Plugin
 			}
 			Sys.Status(sb.ToString());
 		}
+
 	}
 
 	public class CmdConfigEngineBenchmark
@@ -473,9 +478,11 @@ namespace Sinequa.Plugin
 		public SecuritySyntax securitySyntax { get; private set; }
 		public CCDomain domain { get; private set; }
 		public ListStr lUsers { get; private set; } = new ListStr();
+		public SecurityInput securityInput { get; private set; }
+		public CCFile usersPramCustomFile { get; private set; }
 
-		//output
-		private string _outputFolderPath;
+        //output
+        private string _outputFolderPath;
 		public string outputFolderPath
 		{
 			get
@@ -782,27 +789,70 @@ namespace Sinequa.Plugin
 				}
 				domain = CC.Current.Domains.Get(securityDomain);
 
-				//users grid
-				dataTag = "CMD_USERS_GRID";
-				if (!DatatagExist(dataTag, false))
-				{
-					Sys.LogError($"Invalid configuration property: User ACLs - user list is empty");
-					return false;
-				}
-				ListOf<XDoc> lItemsGridUsers = _XMLConf.EltList("CMD_USERS_GRID");
-				for (int i = 0; i < lItemsGridUsers.Count; i++)
-				{
-					XDoc itemGridUsers = lItemsGridUsers.Get(i);
+                //security input
+                dataTag = "CMD_SECURITY_INPUT";
+                if (!DatatagExist(dataTag)) return false;
+                string siType = _XMLConf.Value(dataTag, Str.Empty);
+                if (String.IsNullOrEmpty(siType))
+                {
+                    Sys.LogError($"Invalid configuration property: Security input - Security input is empty");
+                    return false;
+                }
+                if (Enum.TryParse(siType, out SecurityInput si))
+                {
+                    this.securityInput = si;
+                }
+                else
+                {
+                    Sys.LogError($"Invalid configuration property: Security input - Security input [{siType}]");
+                    return false;
+                }
 
-					//user list
-					string userId = itemGridUsers.Value("CMD_USERS_GRID_USER_ID", null);
-					if (String.IsNullOrEmpty(userId) || String.IsNullOrWhiteSpace(userId))
-					{
-						Sys.LogError($"Invalid configuration property: User ACLs - user is empty");
-						return false;
-					}
-					lUsers.AddUnique(userId);
-				}
+                //users param file
+                if (this.securityInput == SecurityInput.File)
+				{
+                    dataTag = "CMD_USERS_PARAMETER_FILE";
+                    if (!DatatagExist(dataTag)) return false;
+                    string usersParamCustomFileName = _XMLConf.Value(dataTag, Str.Empty);
+                    if (String.IsNullOrEmpty(usersParamCustomFileName) || String.IsNullOrWhiteSpace(usersParamCustomFileName))
+                    {
+                        Sys.LogError($"Invalid configuration property: Security Users parameter file - Parameter file is empty");
+                        return false;
+                    }
+                    if (!CC.Current.FileExist("customfile", usersParamCustomFileName))
+                    {
+                        Sys.LogError($"Invalid configuration property: Security Users parameter file - Parameter file, custom file [{usersParamCustomFileName}] not found");
+                        return false;
+                    }
+                    this.usersPramCustomFile = CC.Current.FileGet("customfile", usersParamCustomFileName);
+					lUsers.AddUnique(Fs.FileToList(this.usersPramCustomFile.File));
+                }
+
+                //users grid
+                if (this.securityInput == SecurityInput.Table)
+				{
+                    dataTag = "CMD_USERS_GRID";
+                    if (!DatatagExist(dataTag, false))
+                    {
+                        Sys.LogError($"Invalid configuration property: User ACLs - user list is empty");
+                        return false;
+                    }
+                    ListOf<XDoc> lItemsGridUsers = _XMLConf.EltList("CMD_USERS_GRID");
+                    for (int i = 0; i < lItemsGridUsers.Count; i++)
+                    {
+                        XDoc itemGridUsers = lItemsGridUsers.Get(i);
+
+                        //user list
+                        string userId = itemGridUsers.Value("CMD_USERS_GRID_USER_ID", null);
+                        if (String.IsNullOrEmpty(userId) || String.IsNullOrWhiteSpace(userId))
+                        {
+                            Sys.LogError($"Invalid configuration property: User ACLs - user is empty");
+                            return false;
+                        }
+                        lUsers.AddUnique(userId);
+                    }
+                }
+                
 			}
 			else   //default values
 			{
@@ -1069,7 +1119,12 @@ namespace Sinequa.Plugin
 			{
 				Sys.Log($"Security syntax : [{Enum.GetName(typeof(SecuritySyntax), this.securitySyntax)}]");
 				Sys.Log($"Security domain [{domain.Name}]");
-				Sys.Log($"Users [{lUsers.ToStr(';')}]");
+                Sys.Log($"Security input : [{Enum.GetName(typeof(SecurityInput), this.securityInput)}]");
+				if(this.securityInput == SecurityInput.File)
+				{
+                    Sys.Log($"Users parameter file : [{usersPramCustomFile}]");
+                }
+                Sys.Log($"Users [{lUsers.Count}]");
 				Sys.Log($"----------------------------------------------------");
 			}
 			Sys.Log($"Output folder path : [{this._outputFolderPath}]");
