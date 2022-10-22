@@ -5,6 +5,7 @@ using Sinequa.Search;
 using System.Linq;
 using System.Diagnostics;
 using System.Text;
+using System.Globalization;
 
 namespace Sinequa.Plugin
 {
@@ -172,7 +173,7 @@ namespace Sinequa.Plugin
 		{
 			Stopwatch sw = new Stopwatch();
 			sw.Start();
-			_client = Toolbox.EngineClientFromPool(engineName);
+			_client = Toolbox.EngineClientFromPool(engineName, $"Thread group [{threadGroupName}][{iteration}]");
 			sw.Stop();
 			clientFromPoolTimer = sw.ElapsedMilliseconds;
 			AddToTotalTime(clientFromPoolTimer);
@@ -223,7 +224,8 @@ namespace Sinequa.Plugin
 		private bool GetCursorMainAttributes()
 		{
 			if (_cursor == null) return false;
-			if (!double.TryParse(Str.ParseToSep(_cursor.GetAttribute("processingtime"), ' '), out double attrProcessingtime)) return false;
+
+            if (!double.TryParse(Str.ParseToSep(_cursor.GetAttribute("processingtime"), ' '), out double attrProcessingtime)) return false;
 			this.processingTime = attrProcessingtime;
 			if (!double.TryParse(Str.ParseToSep(_cursor.GetAttribute("rowfetchtime"), ' '), out double attrRowfetchtime)) return false;
 			this.rowFetchTime = attrRowfetchtime;

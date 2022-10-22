@@ -1,6 +1,6 @@
 # EngineBenchmark
 
-EngineBenchmak command aims to measure engine(s) performances at query time. Using this command, you can run repeatable and quantifiable scenarios to analyze what are the performances of the engine(s) through a set of metrics.
+EngineBenchmark command aims to measure engine(s) performances at query time. Using this command, you can run repeatable and quantifiable scenarios to analyze what are the performances of the engine(s) through a set of metrics.
 
 **This command allows you to measure engine(s) performances only**. This does not reflect what the user experience will be because some metrics are excluded such as: WebApp, network and browser rendering time.
 
@@ -22,6 +22,7 @@ It is **recommended to execute this command on a different node than your Engine
         * [Users ACLs](#configuration_security_acl)
     * [Output](#configuration_output)
         * [Output types](#configuration_output_types)
+        * [Output environment information](#configuration_output_environment_info)
         * [Queries output](#configuration_output_queries)
         * [Cursor size breakdown](#configuration_output_cursor)
         * [Dump](#configuration_output_dump)
@@ -36,11 +37,11 @@ It is **recommended to execute this command on a different node than your Engine
 
 # <a name="installation_steps"></a> Installation steps
 
-1. Copy the form override "*command.EngineBenchmark.xml*" to your *&lt;sinequa_data&gt;/form-overrides* folder
-1. Copy the "*EngineBenchmark*" plugin folder to your *&lt;sinequa_data&gt;/plugins* fodler
-1. Add a new environement variable "*SystemXmlLinqDll*" that must point to the "*System.Xml.Linq.dll*". This DLL can be found in *C:/Windows/Microsoft.NET/Framework/&lt;.NetVersion&gt;/* folder where *&lt;.NetVersion&gt;* is the version of the .Net Framework.
+1. Copy the "*form-overrides*" folder to your *˂sinequa_data˃/form-overrides* folder
+1. Copy the "*EngineBenchmark*" plugin folder to your *˂sinequa_data˃/plugins* folder
+1. Add a new environment variable "*SystemXmlLinqDll*" that must point to the "*System.Xml.Linq.dll*". This DLL can be found in *C:/Windows/Microsoft.NET/Framework/˂.NetVersion˃/* folder where *˂.NetVersion˃* is the version of the .Net Framework.
 1. Perform a "refresh configuration" in "global options"
-1. Build the "EngineBenchmark" plugin.  Note: If the plugin fail to complie try the following:
+1. Build the "EngineBenchmark" plugin.  Note: If the plugin fail to compile try the following:
     1. Make sure the plugin "Debug build" is disabled (advanced section of the plugin)
     1. Copy the "System.Xml.Linq.dll" into the "sinequa/website/bin" folder
     1. Build the plugin
@@ -88,8 +89,8 @@ Field | Type | Default value | Required | Comment
 --- | --- | --- | --- | --- 
 Execute thread groups in parallel | Boolean | False |  | Thread groups will be executed in parallel. <br> **Note**: If checked, the number of threads executed in parallel will be the sum of "threads" defined in the "thread groups" grid.
 Name | String |  | yes | Thread group name, used in logs and output file.
-SQL Query | String |  | yes | Support only select statement. You can use variables in this field with the following syntax {myvar} where myvar is the variable name. These variables will be replaced by values from the "parameter file". The curly brackets must enclose your variable name. <br> **Example**: select * from myindex where text contains {SqlString(text)} and SearchParameters='mac={mac},pss={pss}' skip 0 count 20 <br> **Note**: You can use value patterns in the SQL statment. Consider to leverage it in order to escape the text contains value. See example: text contains {SqlString(text)}<br> **Note**: If your SQL statement use indexes located on different Engines (replicated indexes and/or brokering), you must reference the indexes as follow: indexname@EngineHost:Port&#124;EngineHost:Port&#124;...&#124;EngineHost:Port
-Parameter file | List |  | yes | Custom file containing the variables names in the header (first line). Each subsequent line will represent a set of values. <br> **Example**: <br> text;mac;pss <br> sinequa;10000;1000000 <br> enterprise search;5000;2000000 <br> **Note**: The variable name must not be enclosed between curly brackets and lines must have the same number of values as defined in the header. <br> **Note**: Please consider using "using cache 0" after you where clause to disable cache, especially if you have few lines in your parameter file. Otherwise queries will be cached by the Engine leading to biased results.
+SQL Query | String |  | yes | Support only select statement. You can use variables in this field with the following syntax {myvar} where myvar is the variable name. These variables will be replaced by values from the "parameter file". The curly brackets must enclose your variable name. <br> **Example**: select * from myindex where text contains {SqlString(text)} and SearchParameters='mac={mac},pss={pss}' skip 0 count 20 <br> **Note**: You can use value patterns in the SQL statement. Consider to leverage it in order to escape the text contains value. See example: text contains {SqlString(text)}<br> **Note**: If your SQL statement use indexes located on different Engines (replicated indexes and/or brokering), you must reference the indexes as follow: indexname@EngineHost:Port&#124;EngineHost:Port&#124;...&#124;EngineHost:Port
+Parameter file | List |  | yes | Custom file containing the variables names in the header (first line). Each subsequent line will represent a set of values. <br> **Example**: <br> text;mac;pss <br> sinequa;10000;1000000 <br> enterprise search;5000;2000000 <br> **Note**: The variable name must not be enclosed between curly brackets and lines must have the same number of values as defined in the header.
 Separator | Char | ; | yes | Separator used in "Parameter file"
 Parameter strategy | List |  | yes | Strategy to read values from "Parameter file". Values are pulled by line, the strategy define what line values is used to replace the variables in the SQL. <br> Ordered: threads will read lines from top to bottom. <br> Random: read in random order <br> **Note**: If you use more than 1 thread, with "Ordered" strategy, output order will look different because threads are running in parallel.
 User ACLs | Boolean | false |  | If checked, add user ACLs in the SQL query. Will use the same strategy as defined for "Parameter strategy" (Ordered or Random). Please refer to the "Security Tab", "Users ACLs" section for more information. <br> **Note** If used, make sure you SQL query contains a where clause without ACLs.
@@ -97,10 +98,19 @@ Threads | Integer | 5 | yes | Number of parallel threads, each thread will execu
 Thread sleep | String | 3;10 | yes | Define min and max boundaries in seconds before a thread execute SQL query. Values are in seconds. Syntax: min;max. <br> **NOTE**: Min & Max values are in seconds <br> **NOTE**: Sleep instruction happens after thread start but before SQL execution <br> **NOTE**: For no sleep duration, use 0;0
 Execution time | Integer | 60 | yes | Maximum execution time in seconds. Once execution time is reached, stop all threads execution. -1 for infinite.
 Max iterations | Integer |100 | yes | Maximum number of iteration (SQL queries executed). Once max iterations is reached, stop all threads execution. -1 for infinite.
+Disable Fulltext cache | Boolean | false | yes | This option is available through the "advanced options" button. Disable indexes FullText cache by adding 'using cache 0' to the SQL query. When enabled, will force the Engine to read all data from disk and bypass Index cache. This will result in increasing 'FullTextSearchRWA' timers.
+Disable DB cache | Boolean | false | yes | This option is available through the "advanced options" button. Disable indexes DataBase cache by adding 'csf=1' to the SQL query Searchparameters. When enabled, force the Engine to evaluate the Boolean query on columns for the where clause. . This will result in increasing 'ExecuteDBQuery' timers.
 
-**Recommendation**: 
+### <a name="configuration_global_threadgroup_advanced"></a> Thread Group Advanced Settings
 
-As a rule of thumb, make sure the Engine(s) is/are warmed before you execute you benchmark. If needed, run the benchmark a first time to warm the Engine(s). Make sure you run you benchmark for long enough (either number of iterations or max duration) to get a good amount of metrics to analyze. For instance, performing a run that will long for 30 minutes with at least 10K queries performed is a good practice.
+You can access the "advanced settings" of a thread group by clicking on the pencil icon. This gives you access to more options that are less commonly used. 
+
+![Form](doc/form_general_threadgroups_advanced.png "Thread Groups Advanced Settings")
+
+
+**Recommendations**: 
+
+As a rule of thumb, make sure the Engine(s) is/are warmed before you execute you benchmark. If needed, run the benchmark a first time to warm the Engine(s). Make sure you run you benchmark for long enough (either number of iterations or max duration) to get a good amount of metrics to analyze. For instance, performing a run that will run for 10 minutes with at least 10K queries performed is a good practice.
 
 SQL Query: Use the SQL query generated by your "profile" or "web service - search query" as an input for the SQL query. If you have "Tabs" you can also simulate the tab query by adding a second thread group with the tab query. In that case, you should probably use the "Execute thread groups in parallel" option.
 
@@ -115,6 +125,11 @@ Threads	& Thread sleep: Use realistic values for these two parameters, try to es
 How to make sure I will run the same scenario multiple times?
 
 To do that, use the "Ordered" option for "Parameter strategy" and make sure you'll always execute the same number of queries. So the trigger to stop the execution must be "Max iterations" and not "Execution time".
+
+**Disabling cache**
+
+Indexes caches can be disabled using the two dedicated options of the thread group: "Disable Fulltext cache" and "Disable DB cache". However, keep in mind both the system and the hardware have their own cache mechanism. This means, there is always cached at play we can't control. Ultimately, running the same benchmark with Indexes cached disabled will no guarantee consistent results.
+
 
 # <a name="configuration_security"></a> Security
 
@@ -131,11 +146,11 @@ Comment | String | | no | Comment
 
 Adding users in "Users ACLs" will automatically add one of the user security clause in the where clause. Users ACLs will be added only if you check "user ACLs" to the given thread group.
 
-**Recommendation**: It is highly recommended to use this feature. If you don't provide any security clause in the SQL will be equivalent to perform a query on all the documents from your indexes. Querying all the document will most likely degrade search performances and by extension provide biased results. Try to add users from different business units because this will give more accurate results: users will more likely have access to different datasources and different documents from these datasources.
+**Recommendation**: It is highly recommended to use this feature. If you don't provide any security clause in the SQL will be equivalent to perform a query on all the documents from your indexes. Querying all the document will most likely degrade search performances and by extension provide biased results. Try to add users from different business units because this will give more accurate results: users will more likely have access to different data sources and different documents from these data sources.
 
-**NOTE**: Partitions are loaded once when the command start, based on the size and number of patitions this can take a few minutes.
+**NOTE**: Partitions are loaded once when the command start, based on the size and number of partitions this can take a few minutes.
 
-**NOTE**: You need to have the "where" keyword in your SQL statment, otherwise the security clause will not be added.
+**NOTE**: You need to have the "where" keyword in your SQL statement, otherwise the security clause will not be added.
 
 # <a name="configuration_output"></a> Output
 
@@ -145,51 +160,65 @@ Adding users in "Users ACLs" will automatically add one of the user security cla
 
 There are different types of "output" files.
 * Queries (CSV). Thread groups queries information and timers. Generate one file per thread group.
-* Engine activity (CSV). Monitor Engine(s) acitivity while benchmark is running. 
+* Engine activity (CSV). Monitor Engine(s) activity while benchmark is running. 
 
-All the output files will be stored into the "output fodler". See below a detailed description of each outpout types.
+All the output files will be stored into the "output folder". See below a detailed description of each output types.
 
 First of all, you have to configure the "output folder" and the separator for CSV files.
 
 Field | Type | Default value | Required | Comment
 --- | --- | --- | --- | --- 
 Output folder | String | | yes | Folder to store output file. 
-CSV Separator | Char | \t | yes | Seperator used within the output CSV file
+CSV Separator | Char | \t | yes | Separator used within the output CSV file
+
+## <a name="configuration_output_environment_info"></a> Output Environment Information
+
+![Form](doc/form_output_environment_info.png "Output Environment Information form")
+
+It is recommended to keep these options enabled as they provide a clear picture of the environment configuration. 
+
+Field | Type | Default value | Required | Comment
+--- | --- | --- | --- | --- 
+Engines configuration | Boolean | true | | Dump the Engines XML configuration into '˂OutputFolder˃/˂Configuration˃/˂Engines˃/' folder. Default: true
+Indexes configuration | Boolean | true | | Dump the Indexes XML configuration into '˂OutputFolder˃/˂Configuration˃/˂Indexes˃/' folder. Default: true
+Indexes directory files | Boolean | true | | Dump the Engines/Indexes directory XML files properties into '˂OutputFolder˃/˂IndexesDir˃/˂EngineName˃/˂IndexName˃' folder. Index XML file will include file names, size, creation and modification dates Default: true
 
 ## <a name="configuration_output_queries"></a> Queries output
 
 ![Form](doc/form_output_queries.png "Queries output form")
 
-A CSV file will be generated for each thread group using the following naming convention: "&lt;ThreadGroupName&gt;_Queries.csv". It'll contains detailed informations and timers about the queries executed by the thread group.
-You must enable the "Queries ouput" option in order to enable any additional settings.
+A CSV file will be generated for each thread group using the following naming convention: "˂ThreadGroupName˃_Queries.csv". It'll contains detailed information and timers about the queries executed by the thread group.
+You must enable the "Queries output" option in order to enable any additional settings.
 
 Field | Type | Default value | Required | Comment
 --- | --- | --- | --- | --- 
-Queries ouput | Boolean | true | |  The queries output file will contains [Thread Group Name][Iteration][Date Start][Date End][Success][Engine name][Cursor Size] and any other information based on what you selected below. File name will be "&lt;ThreadGroupName&gt;_Queries.csv" <br> [Thread group name] => "thread group name" configured in "thread group" <br> [Date Start] => thread start date, format: yyyy-MM-dd HH:mm:ss,fff <br> [Date End] => thread end date, format: yyyy-MM-dd HH:mm:ss,fff <br> [Iteration] => integer representing execution order <br> [Success] => boolean, false if query failed <br> [Engine Name] => Engine used to execute query <br> [Cursor Size] => sum of all attributes and columns in the cursor. Size in bytes
-SQL Query | Boolean | false | | Add the following infomation to the "output" file: [sql]. <br>  [sql] => SQL query in chich variables are replaced with values from "parameter file" <br> **NOTE**: This can make the output file very big especially if you have a long query or lot of ACLs for users. It will also increase the memory footprint of the command: SQL queries will be keept in memory until the end of execution.
-Query timers | Boolean | true | | Add the following infomation to the "output" file: [TotalQueryTime][ProcessingTime][RowFetchTime][ReadCursor] <br> [TotalQueryTime] => represent toal query time: get client from pool, execute query, network and client to pool<br> [ProcessingTime] => processing time attribute from query result<br> [RowFetchTime] => rowfetch time attribute from query result <br> [ReadCursor] => iterate on rows until reach the end of cursor
-Query Info | Boolean | true | | Add the following infomation to the "output" file: [CacheHit][MatchingRowCount][PostGroupByMatchingRowCount] <br> [MatchingRowCount] => matching row count attribute from query result <br> [CacheHit] => cachehit attribute from query result. If true, query result was cache by the Engine <br> [PostGroupByMatchingRowCount] => Post group by matching row count attribute from query result
-Client timers | Boolean | true | | Add the following infomation to the "output" file: [ClientFromPool][ClientToPool]<br> [clientFromPool] => time to get a client from engine client pool <br> [ClientToPool] => time to return client to engine client pool
-Network and deserialization timer | Boolean | true | | Add the following infomation to the "output" file: [Curosr Network and Deserialization]<br> [Curosr Network and Deserialization] => Network time and cursor deserialization: a timer 'T' start before query execution, stop after reading data from cursor. Time = T - processingTime.
+Queries output | Boolean | true | |  The queries output file will contains [Thread Group Name][Iteration][Date Start][Date End][Success][Engine name][Cursor Size] and any other information based on what you selected below. File name will be "˂ThreadGroupName˃_Queries.csv" <br> [Thread group name] => "thread group name" configured in "thread group" <br> [Date Start] => thread start date, format: yyyy-MM-dd HH:mm:ss,fff <br> [Date End] => thread end date, format: yyyy-MM-dd HH:mm:ss,fff <br> [Iteration] => integer representing execution order <br> [Success] => Boolean, false if query failed <br> [Engine Name] => Engine used to execute query <br> [Cursor Size] => sum of all attributes and columns in the cursor. Size in bytes
+SQL Query | Boolean | false | | Add the following information to the "output" file: [sql]. <br>  [sql] => SQL query in which variables are replaced with values from "parameter file" <br> **NOTE**: This can make the output file very big especially if you have a long query or lot of ACLs for users. It will also increase the memory footprint of the command: SQL queries will be kept in memory until the end of execution.
+Query timers | Boolean | true | | Add the following information to the "output" file: [TotalQueryTime][ProcessingTime][RowFetchTime][ReadCursor] <br> [TotalQueryTime] => represent total query time: get client from pool, execute query, network and client to pool<br> [ProcessingTime] => processing time attribute from query result<br> [RowFetchTime] => rowfetch time attribute from query result <br> [ReadCursor] => iterate on rows until reach the end of cursor
+Query Info | Boolean | true | | Add the following information to the "output" file: [CacheHit][MatchingRowCount][PostGroupByMatchingRowCount] <br> [MatchingRowCount] => matching row count attribute from query result <br> [CacheHit] => cachehit attribute from query result. If true, query result was cache by the Engine <br> [PostGroupByMatchingRowCount] => Post group by matching row count attribute from query result
+Client timers | Boolean | true | | Add the following information to the "output" file: [ClientFromPool][ClientToPool]<br> [clientFromPool] => time to get a client from engine client pool <br> [ClientToPool] => time to return client to engine client pool
+Network and deserialization timer | Boolean | true | | Add the following information to the "output" file: [Cursor Network and Deserialization]<br> [Cursor Network and Deserialization] => Network time and cursor deserialization: a timer 'T' start before query execution, stop after reading data from cursor. Time = T - processingTime.
 Parameters | Boolean | true | | Add values from parameter file used to replace variables in the SQL query to the "output" file. If your thread group use "User ACLs", the user full name will be displayed.
-Internal Query Log - Search RWA timers | Boolean | false | | Add the following infomation to the "output" file: [SearchRWA] and [FullTextSearchRWA] <br> [SearchRWA] => duration per Engine/Index. Represent the time to execute the search on the index, include [FetchingDBQuery] (search on columns) and [FullTextSearchRWA] (search on full text)<br> [FullTextSearchRWA] => time to perform the full text search on the index
-Internal Query Log - DB Query | Boolean | false | | Add the following infomation to the "output" file: [FetchingDBQuery] and [ExecuteDBQuery] durations per Engine/Index. <br> [FetchingDBQuery] => time to build the document set that validate conditions on structured columns. Include [ExecuteDBQuery] timer if any <br> [ExecuteDBQuery] => time to evaluate conditions on structured columns. <br> **NOTE**: [ExecuteDBQuery] can be empty, in that case it means the query was cached by tghe engine
-Internal Query Log - AcqRLk | Boolean | false | | Add the following infomation to the "output" file: [AcqRLk] duration per Engine/Index. <br> [AcqRLk] => lock duration before search start on the index
-Internal Query Log - Distributions & Correlations timers | Boolean | false | | Add the following infomation to the "output" file: [Distribution] and [Correlation] durations per Engine. <br> [Distribution] => time to compute the aggregation <br> [Correlation] => time to compute the aggregation
-Internal Query Log - header timers | Boolean | false | | Add the following infomation to the "output" file: [AcqMRdLk][AcqDBRdLk][NetworkNotificationToWorkerStart][MsgDeserialize][QueryProcessorParse] timers. <br> [AcqMRdLk] => time to acquire indexes existence <br>[AcqDBRdLk] =>  time to acquire main index list lock  <br> [NetworkNotificationToWorkerStart] => time from input notification (network) to worker thread assignment and processing start <br> [MsgDeserialize] => time to deserialize the input query <br>[QueryProcessorParse] => time to analyze the query (can include index access for fuzzy search)
-Internal Query Log - Brokering Info & timer | Boolean | false | | Add the following infomation to the "output" file: [Broker Engine][Client Engine(s)] and [MergeAttributes] duration. <br> [Broker Engine] => Broker is in charge of propagating the SQL query to other Engines (so called clients) if needed. Client will return their results to the broken that ultimately be incharge of merging all the results. <br> [Client Engine(s)] => List of Engines called by the 'Broker' <br> [MergeAttributes] => time to merge attributes between boker and clients
-Internal Query Log - Threads count | Boolean | false | | Add the following infomation to the "output" file: [Header threads][Threads per engine][Total threads] <br> [Header threads] => Number of distinct threads used for [AcqMRdLk][AcqDBRdLk][NetworkNotificationToWorkerStart][MsgDeserialize][QueryProcessorParse] <br> [Threads per engine] => Number of distinct threads per Engine <br> [Total threads] => Represent the total number of distinct threads used to perform the query.
-Internal Query Log - RFM Boost | Boolean | false | | Add the following infomation to the "output" file: [RFM:exact][RFM:similar] <br> [RFM:exact] => time to perform RFM exact match on RFM Index <br> [RFM:similar] => time to perform RFM similar match on RFM Index
+Internal Query Log - Search RWA timers | Boolean | false | | Add the following information to the "output" file: [SearchRWA] and [FullTextSearchRWA] <br> [SearchRWA] => duration per Engine/Index. Represent the time to execute the search on the index, include [FetchingDBQuery] (search on columns) and [FullTextSearchRWA] (search on full text)<br> [FullTextSearchRWA] => time to perform the full text search on the index
+Internal Query Log - DB Query | Boolean | false | | Add the following information to the "output" file: [FetchingDBQuery] and [ExecuteDBQuery] durations per Engine/Index. <br> [FetchingDBQuery] => time to build the document set that validate conditions on structured columns. Include [ExecuteDBQuery] timer if any <br> [ExecuteDBQuery] => time to evaluate conditions on structured columns. <br> **NOTE**: [ExecuteDBQuery] can be empty, in that case it means the query was cached by the engine
+Internal Query Log - AcqRLk | Boolean | false | | Add the following information to the "output" file: [AcqRLk] duration per Engine/Index. <br> [AcqRLk] => lock duration before search start on the index
+Internal Query Log - Distributions & Correlations timers | Boolean | false | | Add the following information to the "output" file: [Distribution] and [Correlation] durations per Engine. <br> [Distribution] => time to compute the aggregation <br> [Correlation] => time to compute the aggregation
+Internal Query Log - header timers | Boolean | false | | Add the following information to the "output" file: [AcqMRdLk][AcqDBRdLk][NetworkNotificationToWorkerStart][MsgDeserialize][QueryProcessorParse] timers. <br> [AcqMRdLk] => time to acquire indexes existence <br>[AcqDBRdLk] =>  time to acquire main index list lock  <br> [NetworkNotificationToWorkerStart] => time from input notification (network) to worker thread assignment and processing start <br> [MsgDeserialize] => time to deserialize the input query <br>[QueryProcessorParse] => time to analyze the query (can include index access for fuzzy search)
+Internal Query Log - Brokering Info & timer | Boolean | false | | Add the following information to the "output" file: [Broker Engine][Client Engine(s)] and [MergeAttributes] duration. <br> [Broker Engine] => Broker is in charge of propagating the SQL query to other Engines (so called clients) if needed. Client will return their results to the broken that ultimately be in charge of merging all the results. <br> [Client Engine(s)] => List of Engines called by the 'Broker' <br> [MergeAttributes] => time to merge attributes between broker and clients
+Internal Query Log - Threads count | Boolean | false | | Add the following information to the "output" file: [Header threads][Threads per engine][Total threads] <br> [Header threads] => Number of distinct threads used for [AcqMRdLk][AcqDBRdLk][NetworkNotificationToWorkerStart][MsgDeserialize][QueryProcessorParse] <br> [Threads per engine] => Number of distinct threads per Engine <br> [Total threads] => Represent the total number of distinct threads used to perform the query.
+Internal Query Log - RFM Boost | Boolean | false | | Add the following information to the "output" file: [RFM:exact][RFM:similar] <br> [RFM:exact] => time to perform RFM exact match on RFM Index <br> [RFM:similar] => time to perform RFM similar match on RFM Index
+Internal Query Log - Neural Search | Boolean | false | | Add the following information to the '˂ThreadGroupName˃_Queries.csv' file: [ANNIndexQuery Task][TextCompressor::Decompress Count][TextCompressor::Decompress AVG][FillPassagesTextRWA][AnswerFinderProcessing][PRMCalculation][ProcessPassageRanking][MergeContexts]. Default: false. => time to perform Neural Search computation including passages ranking and answer finding. <br> [ANNIndexQuery Task] => TBD <br> [TextCompressor::Decompress Count] => TBD <br> [TextCompressor::Decompress AVG] => TBD <br> [FillPassagesTextRWA] => TBD <br> [AnswerFinderProcessing] => TBD <br> [PRMCalculation] => TBD <br> [ProcessPassageRanking] => TBD <br> [MergeContexts] => TBD <br>
+
 
 ## <a name="configuration_output_cursor"></a> Cursor size breakdown
 
 ![Form](doc/form_output_cursorsize.png "Cursor size breakdown form")
 
-A CSV file will be generated for each thread group using the following naming convention: "&lt;ThreadGroupName&gt;_CursorSize.csv". It'll contains the cursor size per queries and the breakdown of the cursor size: size of each attributes and columns of the cursor.
+A CSV file will be generated for each thread group using the following naming convention: "˂ThreadGroupName˃_CursorSize.csv". It'll contains the cursor size per queries and the breakdown of the cursor size: size of each attributes and columns of the cursor.
 
 Field | Type | Default value | Required | Comment
 --- | --- | --- | --- | --- 
-Cursor size breakdown output | Boolean | false | | The Cursor Size output file will contains [Thread Group Name][Iteration][Date Start][Date End][Success][Engine name][Cursor Size] and all attributes / columns of the cursor and associated size. File name will be "&lt;ThreadGroupName&gt;_CursorSize.csv"
+Cursor size breakdown output | Boolean | false | | The Cursor Size output file will contains [Thread Group Name][Iteration][Date Start][Date End][Success][Engine name][Cursor Size] and all attributes / columns of the cursor and associated size. File name will be "˂ThreadGroupName˃_CursorSize.csv"
 Output empty columns | Boolean | false | |  Removes column where size is equals to 0
 
 ## <a name="configuration_output_dump"></a> Dump
@@ -200,17 +229,17 @@ Allows you to dump InternalQueryLog, InternalQueryAnalysis and Cursor based on t
 
 Field | Type | Default value | Required | Comment
 --- | --- | --- | --- | --- 
-Internal Query Log XML | Boolean | false | | Dump the Internal Query Log XML into a sub folder of the "output folder". <br> Sub folder name is "Internalquerylog". <br> Dump file name: "internalquerylog_&lt;ThreadGroupName&gt;_&lt;Iteration&gt;.xml" <br> **NOTE**: you need to add internalquerylog to the select statment of the query.
+Internal Query Log XML | Boolean | false | | Dump the Internal Query Log XML into a sub folder of the "output folder". <br> Sub folder name is "Internalquerylog". <br> Dump file name: "internalquerylog_˂ThreadGroupName˃_˂Iteration˃.xml" <br> **NOTE**: you need to add internalquerylog to the select statement of the query.
 Min processing time - Internal Query Log | Integer | 1000 | yes | Minimum query processing time to dump Internal Query Log XML to dump folder. Value is in milliseconds.
-Internal Query Analysis XML | Boolean | false | | Dump the Internal Query Analysis XML into a sub folder of the "output folder". <br> Sub folder name is "Internalqueryanalysis". <br> Dump file name: "internalqueryanalysis_&lt;ThreadGroupName&gt;_&lt;Iteration&gt;.xml" <br> **NOTE**: you need to add internalqueryanalysis to the select statment of the query and have a "text contains = '...'" clause
+Internal Query Analysis XML | Boolean | false | | Dump the Internal Query Analysis XML into a sub folder of the "output folder". <br> Sub folder name is "Internalqueryanalysis". <br> Dump file name: "internalqueryanalysis_˂ThreadGroupName˃_˂Iteration˃.xml" <br> **NOTE**: you need to add internalqueryanalysis to the select statement of the query and have a "text contains = '...'" clause
 Min processing time - Internal Query Analysis | Integer | 1000 | yes | Minimum query processing time to dump Internal Query Analysis XML to dump folder. Value is in milliseconds.
-Cursor | Boolean | false | | Dump the Cursor: attributes and columns to a CSV file into a sub folder of the "output folder". <br> Sub folder name is "Cursors". <br> Dump file name: "cursor_&lt;ThreadGroupName&gt;_&lt;Iteration&gt;.xml" <br> **NOTE**: When this option is enabled, the cursor data is duplicated and kept in memory (for the duration of the query) for all queries, even the ones that does not match the two triggers: Min size and Min processing time. As a result it as a big inpact on perfomances and must be used only for "debugging" purpose.
+Cursor | Boolean | false | | Dump the Cursor: attributes and columns to a CSV file into a sub folder of the "output folder". <br> Sub folder name is "Cursors". <br> Dump file name: "cursor_˂ThreadGroupName˃_˂Iteration˃.xml" <br> **NOTE**: When this option is enabled, the cursor data is duplicated and kept in memory (for the duration of the query) for all queries, even the ones that does not match the two triggers: Min size and Min processing time. As a result it as a big impact on performances and must be used only for "debugging" purpose.
 Min size - Cursor | Integer | 1 | yes | 
 Min processing time - Cursor | Integer | 1000 | yes | Minimum query processing time to dump Cursor to dump folder. Value is in milliseconds.
 
 **Recommendation**: You should use the dump option(s) to get more information only on the top N longest queries. To do so, run the command a first time and look at the "90th percentile processing time" and use this value to configure the "Min processing time" fields. By doing so you reduce the number of dumps that are generated and by extension you are making the analysis easier.
 
-**NOTE**: Dumping the data on the disk can slow down the EngineBenchmark command. Unlike the "output" information, this is not stored in memory but wrtitten on the disk right after query execution. 
+**NOTE**: Dumping the data on the disk can slow down the EngineBenchmark command. Unlike the "output" information, this is not stored in memory but written on the disk right after query execution. 
 
 ## <a name="configuration_output_engineactivity"></a> Engine Activity
 
@@ -221,7 +250,7 @@ Field | Type | Default value | Required | Comment
 Engine activity monitoring | Boolean | false | | Monitor Engine(s) activity for specified engines. Default: false. Create a 'EngineActivity.csv' file that contains <br>[Engine] => Engine name <br>[Process Time] => activity datetime, format: yyyy-MM-dd HH:mm:ss,fff <br>[Process CPUTime Ms] => amount of time for which CPU was used by Engine (CPUUserTime + CPUSystemTime)<br>[Process CPUUserTime Ms] => amount of time for which CPU was used by the Engine only (Engine computation) <br>[Process CPUSystemTime Ms] => amount of time for which CPU was used by the system (Engine instruction delegated to the system, such as R/W on the disk) <br>[Process VMSize Gb] => total of all private (not shared) memory allocated by Engine process <br>[Process WSSize Gb] => set of pages owned by Engine process <br>[Process InstalledMemory Gb] => total RAM installed on the machine hosting the Engine <br>[Process AvailableMemory Gb] => total free RAM available on the machine hosting the Engine  <br>[Queries AverageProcessingTime Ms] =>  <br>[Queries Throughput] =>  <br>[Overload] =>  <br>[IsRecoveringFromOverload] =>  <br>[Threads Working] => Number of Engine working threads <br>[Threads Idle] => Number of Engine idle threads
 Engines | List | | | An Engine or a list of Engines to monitor while the command is running
 Frequency | Integer | 3 | | Define the frequency to request activity from Engine(s). Value is in seconds
-Frequency | bool | false | | Dump the Engine Activity XML into a sub folder of the "output folder". <br> Sub folder name is "EngineActivity". <br> Dump file name: &lt;EngneName&gt;_&lt;Iteration&gt;.xml
+Frequency | bool | false | | Dump the Engine Activity XML into a sub folder of the "output folder". <br> Sub folder name is "EngineActivity". <br> Dump file name: ˂EngneName˃_˂Iteration˃.xml
 
 
 # <a name="logs"></a> Logs
@@ -239,13 +268,13 @@ Can be represented as:
 ```
 <DT> <{TID}> Thread group <[TG]><[I]> prepare execute SQL on engine <[E]> with parameters [P1]=[V1];[P2]=[V2];[P3]=[V3]
 ```
-&lt;DT&gt; => DateTime, format: yyyy-MM-dd HH:mm:ss <br>
-&lt;{TID}&gt; => Thread Id <br>
-&lt;[TG]&gt; => Thread Group Name <br>
-&lt;[I]&gt; => Iteration <br>
-&lt;[E]&gt; => Engine Name <br>
-&lt;[PN]&gt; => Parameter N <br>
-&lt;[VN]&gt; => Value N <br>
+˂DT˃ => DateTime, format: yyyy-MM-dd HH:mm:ss <br>
+˂{TID}˃ => Thread Id <br>
+˂[TG]˃ => Thread Group Name <br>
+˂[I]˃ => Iteration <br>
+˂[E]˃ => Engine Name <br>
+˂[PN]˃ => Parameter N <br>
+˂[VN]˃ => Value N <br>
 
 Curly braces {} indicates the log has been generated in a multithread context
 
@@ -355,7 +384,7 @@ By default, you'll get the following statistics per thread group:
 2021-10-02 16:12:26 Thread Group [query_1] - QPS (Query Per Second) [25.52] 
 ```
 
-Then you'll find multiple tables presenting queries detailed statistics abour the queries of the thread group. 
+Then you'll find multiple tables presenting queries detailed statistics about the queries of the thread group. 
 
 If you have enabled "QueryTimers" the table will contains "totalQueryTime", "processingTime", "rowFetchTime", "readCursor" and "cursorSizeMB"
 

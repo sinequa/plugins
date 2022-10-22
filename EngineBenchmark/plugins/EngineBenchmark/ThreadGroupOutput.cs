@@ -61,6 +61,22 @@ namespace Sinequa.Plugin
 		public List<(string engineName, string index, double duration)> IQLFetchingDBQuery { get; private set; } = new List<(string engineName, string index, double duration)>();
 		//AcqRLk
 		public List<(string engineName, string index, double duration)> IQLAcqRLk { get; private set; } = new List<(string engineName, string index, double duration)>();
+		//ANNIndexQuery Task
+		public List<(string engineName, string index, double duration)> IQLANNIndexQueryTask { get; private set; } = new List<(string engineName, string index, double duration)>();
+		//TextCompressor::Decompress count
+		public List<(string engineName, string index, double count)> IQLTextCompressorDecompressCount { get; private set; } = new List<(string engineName, string index, double count)>();
+		//TextCompressor::Decompress AVG duration
+		public List<(string engineName, string index, double duration)> IQLTextCompressorDecompressAVG { get; private set; } = new List<(string engineName, string index, double duration)>();
+		//FillPassagesTextRWA
+		public List<(string engineName, string index, double duration)> IQLFillPassagesTextRWA { get; private set; } = new List<(string engineName, string index, double duration)>();
+		//IQLAnswerFinderProcessing
+		public List<(string engineName, string index, double duration)> IQLAnswerFinderProcessing { get; private set; } = new List<(string engineName, string index, double duration)>();
+		//PRM Calculation
+		public List<(string engineName, string index, double duration)> IQLPRMCalculation { get; private set; } = new List<(string engineName, string index, double duration)>();
+		//ProcessPassageRanking
+		public List<(string engineName, string index, double duration)> IQLProcessPassageRanking { get; private set; } = new List<(string engineName, string index, double duration)>();
+		//MergeContexts
+		public List<(string engineName, string index, double duration)> IQLMergeContexts { get; private set; } = new List<(string engineName, string index, double duration)>();
 
 		//AcqMRdLk duration
 		public double IQLAcqMRdLk { get; private set; }
@@ -185,11 +201,10 @@ namespace Sinequa.Plugin
 			if (_threadGroup.conf.outputIQLThreadCount) GetFromIQL_Header_Tid_Distinct(xInternalQueryLog);
 
 			//RFMBoost
-			if (_threadGroup.conf.outputRFMBoost)
+			if (_threadGroup.conf.outputIQLRFMBoost)
             {
 				if(xInternalQueryLog.Descendants("RFMBoost").Count() > 0) GetFromIQL_RFMBoost(xInternalQueryLog.Descendants("RFMBoost").First());
 			}
-				
 
 			//no brokering, no engine tag
 			if (xInternalQueryLog.Descendants("Engine").Count() == 0)
@@ -201,10 +216,13 @@ namespace Sinequa.Plugin
 				List<XElement> lIndexElem = xInternalQueryLog.Descendants("IndexSearch").ToList();
 
 				//SearchRWA & DBQuery
-				if (_threadGroup.conf.outputIQLSearchRWA || _threadGroup.conf.outputIQLDBQuery || _threadGroup.conf.outputIQLAcqRLk) GetFromIQL_SearchRWA_DBQuery_AcqRLk_Duration(lIndexElem, engineName);
+				if (_threadGroup.conf.outputIQLSearchRWA || 
+					_threadGroup.conf.outputIQLDBQuery || 
+					_threadGroup.conf.outputIQLAcqRLk ||
+					_threadGroup.conf.outputIQLNeuralSearch) GetFromIQL_Index_Durations(lIndexElem, engineName);
 
 				//distribution & correlations
-				if (_threadGroup.conf.outputIQLDistributionsCorrelations) GetFromIQL_Distribution_Correlation_Duration(xInternalQueryLog.Root, engineName);
+				if (_threadGroup.conf.outputIQLDistributionsCorrelations) GetFromIQL_Engine_Distribution_Correlation_Duration(xInternalQueryLog.Root, engineName);
 
 				//distinct thread count
 				if (_threadGroup.conf.outputIQLThreadCount) GetFromIQL_Engine_Tid_Distinct(xInternalQueryLog.Root, engineName);
@@ -224,10 +242,10 @@ namespace Sinequa.Plugin
 					List<XElement> lIndexElem = engineElem.Descendants("IndexSearch").ToList();
 
 					//SearchRWA - DBQuery - AcqRLk
-					if (_threadGroup.conf.outputIQLSearchRWA || _threadGroup.conf.outputIQLDBQuery || _threadGroup.conf.outputIQLAcqRLk) GetFromIQL_SearchRWA_DBQuery_AcqRLk_Duration(lIndexElem, engineName);
+					if (_threadGroup.conf.outputIQLSearchRWA || _threadGroup.conf.outputIQLDBQuery || _threadGroup.conf.outputIQLAcqRLk) GetFromIQL_Index_Durations(lIndexElem, engineName);
 
 					//distribution & correlations
-					if (_threadGroup.conf.outputIQLDistributionsCorrelations) GetFromIQL_Distribution_Correlation_Duration(engineElem, engineName);
+					if (_threadGroup.conf.outputIQLDistributionsCorrelations) GetFromIQL_Engine_Distribution_Correlation_Duration(engineElem, engineName);
 
 					//distinct thread count
 					if (_threadGroup.conf.outputIQLThreadCount) GetFromIQL_Engine_Tid_Distinct(engineElem, engineName);
@@ -253,16 +271,15 @@ namespace Sinequa.Plugin
 
 			sw.Stop();
 			Sys.Log2(200, $"{{{threadId}}} Thread group [{_threadGroup.name}][{iteration}] Timer - SetInternalQueryLog [{Sys.TimerGetText(sw.ElapsedMilliseconds)}]");
-
 			return true;
 		}
 
-		private bool GetTimingDuration(XElement xElem, string attrName, out double timing)
+		private bool GetTimingDuration(XElement xElem, string attrName, out double timing, bool beginWith = false)
         {
 			timing = -1;
 			if (xElem == null) return false;
 
-			XElement timingElem = xElem.Descendants("timing").SingleOrDefault(x => Str.EQNC(x.Attribute("name").Value, attrName));
+			XElement timingElem = beginWith ? xElem.Descendants("timing").SingleOrDefault(x => Str.BeginWith(x.Attribute("name").Value, attrName)) : xElem.Descendants("timing").SingleOrDefault(x => Str.EQNC(x.Attribute("name").Value, attrName));
 			if (timingElem == null)
 			{
 				Sys.LogWarning($"{{{threadId}}} Thread group [{_threadGroup.name}][{iteration}] Cannot find timing [{attrName}] in [{xElem}]");
@@ -270,6 +287,28 @@ namespace Sinequa.Plugin
 			}
 
 			return GetTimingDuration(timingElem, out timing);
+		}
+
+		private bool GetTimingDurationMuti(XElement xElem, string attrName, out List<double> lDurations, bool beginWith = false)
+		{
+			lDurations = new List<double>();
+			if (xElem == null) return false;
+
+			List<XElement> lTimingElem = new List<XElement>();
+			if(beginWith) lTimingElem = xElem.Descendants("timing").Where(x => Str.BeginWith(x.Attribute("name").Value, attrName, true)).ToList();
+			else lTimingElem = xElem.Descendants("timing").Where(x => Str.EQNC(x.Attribute("name").Value, attrName)).ToList();
+			if (lTimingElem.Count == 0)
+			{
+				Sys.LogWarning($"{{{threadId}}} Thread group [{_threadGroup.name}][{iteration}] Cannot find timing [{attrName}] in [{xElem}]");
+				return false;
+			}
+            foreach (XElement timingElem in lTimingElem)
+            {
+				if (!GetTimingDuration(timingElem, out double d)) return false;
+				lDurations.Add(d);
+			}
+
+			return true;
 		}
 
 		private bool GetTimingDuration(XElement xElem, out double timing)
@@ -347,8 +386,8 @@ namespace Sinequa.Plugin
 			return true;
 		}
 
-		//SearchRWA - FullTextSearchRWA - ExecuteDBQuery - Fetching DBQuery - AcqRLk
-		private bool GetFromIQL_SearchRWA_DBQuery_AcqRLk_Duration(List<XElement> lIndexElem, string engineName)
+		//SearchRWA - FullTextSearchRWA - ExecuteDBQuery - Fetching DBQuery - AcqRLk - NeuralSearch
+		private bool GetFromIQL_Index_Durations(List<XElement> lIndexElem, string engineName)
         {
 			if (lIndexElem == null || lIndexElem.Count == 0) return false;
 
@@ -365,6 +404,8 @@ namespace Sinequa.Plugin
 			{
 				double d;
 				string indexName = indexElem.Attribute("index").Value;
+
+				//SearchRWA
 				if (_threadGroup.conf.outputIQLSearchRWA)
 				{
 					//get SearchRWA duration
@@ -381,6 +422,7 @@ namespace Sinequa.Plugin
 					}
 				}
 
+				//DBQuery
 				if (_threadGroup.conf.outputIQLDBQuery)
 				{
 					//get ExecuteDBQuery & Fetching DBQuery duration
@@ -399,7 +441,8 @@ namespace Sinequa.Plugin
 					}
 				}
 
-                if (_threadGroup.conf.outputIQLAcqRLk)
+				//AcqRLk
+				if (_threadGroup.conf.outputIQLAcqRLk)
 				{
 					//get AcqRLk duration
 					//<timing name="AcqRLk" duration="0.00 ms" start="6.15 ms" tid="14" />
@@ -409,12 +452,66 @@ namespace Sinequa.Plugin
 						else return false;
 					}
 				}
+
+				//Neural Search
+				if (_threadGroup.conf.outputIQLNeuralSearch)
+				{
+					//get Neural Search durations
+					//TODO - check timing syntax + multivaluated
+					//<timing name="ANNIndexQuery Task" duration="0.39 ms" start="93.22 ms" />
+					if (indexElem.Descendants("timing").Any(x => Str.EQNC(x.Attribute("name").Value, "ANNIndexQuery Task")))
+					{
+						if (GetTimingDuration(indexElem, "ANNIndexQuery Task", out d)) IQLANNIndexQueryTask.Add((engineName, indexName, d));
+						else return false;
+					}
+					//<timing name="TextCompressor::Decompress" duration="0.88 ms" start="6.55 ms" tid="7" />
+					if (indexElem.Descendants("timing").Any(x => Str.EQNC(x.Attribute("name").Value, "TextCompressor::Decompress")))
+					{
+						if (GetTimingDurationMuti(indexElem, "TextCompressor::Decompress", out List<double> ld))
+						{
+							IQLTextCompressorDecompressCount.Add((engineName, indexName, ld.Count()));
+							IQLTextCompressorDecompressAVG.Add((engineName, indexName, ld.Average()));
+						}
+						else return false;
+					}
+					//<timing name="FillPassagesTextRWA" duration="0.99 ms" start="6.51 ms" tid="7" />
+					if (indexElem.Descendants("timing").Any(x => Str.EQNC(x.Attribute("name").Value, "FillPassagesTextRWA")))
+					{
+						if (GetTimingDuration(indexElem, "FillPassagesTextRWA", out d)) IQLFillPassagesTextRWA.Add((engineName, indexName, d));
+						else return false;
+					}
+					//<timing name="AnswerFinderProcessing [5]" duration="44.72 ms" start="697.44 ms" tid="4" />
+					if (indexElem.Descendants("timing").Any(x => Str.BeginWith(x.Attribute("name").Value, "AnswerFinderProcessing")))
+					{
+						if (GetTimingDuration(indexElem, "AnswerFinderProcessing", out d, true)) IQLAnswerFinderProcessing.Add((engineName, indexName, d));
+						else return false;
+					}
+					//<timing name="PRM Calculation" duration="0.09 ms" start="7.50 ms" tid="7" />
+					if (indexElem.Descendants("timing").Any(x => Str.EQNC(x.Attribute("name").Value, "PRM Calculation")))
+					{
+						if (GetTimingDuration(indexElem, "PRM Calculation", out d)) IQLPRMCalculation.Add((engineName, indexName, d));
+						else return false;
+					}
+					//<timing name="ProcessPassageRanking" duration="1.14 ms" start="6.46 ms" tid="7" />
+					if (indexElem.Descendants("timing").Any(x => Str.EQNC(x.Attribute("name").Value, "ProcessPassageRanking")))
+					{
+						if (GetTimingDuration(indexElem, "ProcessPassageRanking", out d)) IQLProcessPassageRanking.Add((engineName, indexName, d));
+						else return false;
+					}
+					//<timing name="MergeContexts" duration="1.14 ms" start="6.46 ms" tid="7" />
+					if (indexElem.Descendants("timing").Any(x => Str.EQNC(x.Attribute("name").Value, "MergeContexts")))
+					{
+						if (GetTimingDuration(indexElem, "MergeContexts", out d)) IQLMergeContexts.Add((engineName, indexName, d));
+						else return false;
+					}
+				}
+
 			}
 
 			return true;
 		}
 
-		private bool GetFromIQL_Distribution_Correlation_Duration(XElement engineElem, string engineName)
+		private bool GetFromIQL_Engine_Distribution_Correlation_Duration(XElement engineElem, string engineName)
         {
 			if (engineElem == null) return false;
 
@@ -787,6 +884,17 @@ namespace Sinequa.Plugin
             {
 				lHeaders.Add(_threadGroup.lSortedEngineIndex.Select(x => $"{x.index}[{x.engine}][AcqRLk]").ToArray());
 			}
+			if (this._threadGroup.conf.outputIQLNeuralSearch)
+			{
+				lHeaders.Add(_threadGroup.lSortedEngineIndex.Select(x => $"{x.index}[{x.engine}][ANNIndexQuery Task]").ToArray());
+				lHeaders.Add(_threadGroup.lSortedEngineIndex.Select(x => $"{x.index}[{x.engine}][TextCompressor::Decompress Count]").ToArray());
+				lHeaders.Add(_threadGroup.lSortedEngineIndex.Select(x => $"{x.index}[{x.engine}][TextCompressor::Decompress AVG]").ToArray());
+				lHeaders.Add(_threadGroup.lSortedEngineIndex.Select(x => $"{x.index}[{x.engine}][FillPassagesTextRWA]").ToArray());
+				lHeaders.Add(_threadGroup.lSortedEngineIndex.Select(x => $"{x.index}[{x.engine}][AnswerFinderProcessing]").ToArray());
+				lHeaders.Add(_threadGroup.lSortedEngineIndex.Select(x => $"{x.index}[{x.engine}][PRM Calculation]").ToArray());
+				lHeaders.Add(_threadGroup.lSortedEngineIndex.Select(x => $"{x.index}[{x.engine}][ProcessPassageRanking]").ToArray());
+				lHeaders.Add(_threadGroup.lSortedEngineIndex.Select(x => $"{x.index}[{x.engine}][MergeContexts]").ToArray());
+			}
 			if (this._threadGroup.conf.outputIQLDistributionsCorrelations)
 			{
 				lHeaders.Add(_threadGroup.lSortedEngineDistribution.Select(x => $"{x.distribution}[{x.engine}][Distribution]").ToArray());
@@ -800,7 +908,7 @@ namespace Sinequa.Plugin
 				lHeaders.Add("MsgDeserialize");
 				lHeaders.Add("QueryProcessorParse");
 			}
-			if (this._threadGroup.conf.outputRFMBoost)
+			if (this._threadGroup.conf.outputIQLRFMBoost)
 			{
 				lHeaders.Add("RFM:exact");
 				lHeaders.Add("RFM:similar");
@@ -879,6 +987,81 @@ namespace Sinequa.Plugin
 							lColumns.Add(r.duration.ToString());
 					}
 				}
+				if (this._threadGroup.conf.outputIQLNeuralSearch)
+				{
+					//ANNIndexQueryTask
+					foreach ((string index, string engine) o in _threadGroup.lSortedEngineIndex)
+					{
+						(string engine, string index, double duration) r = IQLANNIndexQueryTask.SingleOrDefault(x => Str.EQNC(x.engineName, o.engine) && Str.EQNC(x.index, o.index));
+						if (String.IsNullOrEmpty(r.engine) || r.duration < 0)
+							lColumns.Add(Str.Empty);
+						else
+							lColumns.Add(r.duration.ToString());
+					}
+					//TextCompressor::Decompress Count
+					foreach ((string index, string engine) o in _threadGroup.lSortedEngineIndex)
+					{
+						(string engine, string index, double count) r = IQLTextCompressorDecompressCount.SingleOrDefault(x => Str.EQNC(x.engineName, o.engine) && Str.EQNC(x.index, o.index));
+						if (String.IsNullOrEmpty(r.engine) || r.count < 0)
+							lColumns.Add(Str.Empty);
+						else
+							lColumns.Add(r.count.ToString());
+					}
+					//TextCompressor::Decompress AVG
+					foreach ((string index, string engine) o in _threadGroup.lSortedEngineIndex)
+					{
+						(string engine, string index, double duration) r = IQLTextCompressorDecompressAVG.SingleOrDefault(x => Str.EQNC(x.engineName, o.engine) && Str.EQNC(x.index, o.index));
+						if (String.IsNullOrEmpty(r.engine) || r.duration < 0)
+							lColumns.Add(Str.Empty);
+						else
+							lColumns.Add(r.duration.ToString());
+					}
+					//FillPassagesTextRWA
+					foreach ((string index, string engine) o in _threadGroup.lSortedEngineIndex)
+					{
+						(string engine, string index, double duration) r = IQLFillPassagesTextRWA.SingleOrDefault(x => Str.EQNC(x.engineName, o.engine) && Str.EQNC(x.index, o.index));
+						if (String.IsNullOrEmpty(r.engine) || r.duration < 0)
+							lColumns.Add(Str.Empty);
+						else
+							lColumns.Add(r.duration.ToString());
+					}
+					//AnswerFinderProcessing
+					foreach ((string index, string engine) o in _threadGroup.lSortedEngineIndex)
+					{
+						(string engine, string index, double duration) r = IQLAnswerFinderProcessing.SingleOrDefault(x => Str.EQNC(x.engineName, o.engine) && Str.EQNC(x.index, o.index));
+						if (String.IsNullOrEmpty(r.engine) || r.duration < 0)
+							lColumns.Add(Str.Empty);
+						else
+							lColumns.Add(r.duration.ToString());
+					}
+					//PRM Calculation
+					foreach ((string index, string engine) o in _threadGroup.lSortedEngineIndex)
+					{
+						(string engine, string index, double duration) r = IQLPRMCalculation.SingleOrDefault(x => Str.EQNC(x.engineName, o.engine) && Str.EQNC(x.index, o.index));
+						if (String.IsNullOrEmpty(r.engine) || r.duration < 0)
+							lColumns.Add(Str.Empty);
+						else
+							lColumns.Add(r.duration.ToString());
+					}
+					//ProcessPassageRanking
+					foreach ((string index, string engine) o in _threadGroup.lSortedEngineIndex)
+					{
+						(string engine, string index, double duration) r = IQLProcessPassageRanking.SingleOrDefault(x => Str.EQNC(x.engineName, o.engine) && Str.EQNC(x.index, o.index));
+						if (String.IsNullOrEmpty(r.engine) || r.duration < 0)
+							lColumns.Add(Str.Empty);
+						else
+							lColumns.Add(r.duration.ToString());
+					}
+					//MergeContexts
+					foreach ((string index, string engine) o in _threadGroup.lSortedEngineIndex)
+					{
+						(string engine, string index, double duration) r = IQLMergeContexts.SingleOrDefault(x => Str.EQNC(x.engineName, o.engine) && Str.EQNC(x.index, o.index));
+						if (String.IsNullOrEmpty(r.engine) || r.duration < 0)
+							lColumns.Add(Str.Empty);
+						else
+							lColumns.Add(r.duration.ToString());
+					}
+				}
 				if (this._threadGroup.conf.outputIQLDistributionsCorrelations)
 				{
 					//Distribution
@@ -913,7 +1096,7 @@ namespace Sinequa.Plugin
 					//QueryProcessorParse
 					if (querySuccess) lColumns.Add(IQLQueryProcessorParse.ToString()); else lColumns.Add(Str.Empty);
 				}
-				if (this._threadGroup.conf.outputRFMBoost)
+				if (this._threadGroup.conf.outputIQLRFMBoost)
 				{
 					//RFM Boost
 					//Exact
