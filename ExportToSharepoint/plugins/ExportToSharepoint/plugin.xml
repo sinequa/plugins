@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sinequa>
+	<Revision>1</Revision>
+	<Description></Description>
+	<ProgrammingLanguage>cs</ProgrammingLanguage>
+	<Platform>any</Platform>
+	<Files>
+		<e>
+			<Name>ExportToSharepoint.cs</Name>
+			<Comment></Comment>
+		</e>
+	</Files>
+	<IsDebug>false</IsDebug>
+	<ExternalDllPath></ExternalDllPath>
+	<Reference>website\bin\Microsoft.SharePoint.Client.dll</Reference>
+	<Reference>website\bin\Microsoft.SharePoint.Client.Runtime.dll</Reference>
+</Sinequa>

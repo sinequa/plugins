@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sinequa>
+	<Inherit>command</Inherit>
+	<Tab merge-type="merge" merge-id="general">
+		<Group merge-type="add" id="sharepoint_settings">
+			<Display>{Lang("Sharepoint Details")}</Display>
+			<Entry>
+				<Display>{Lang("Sharepoint Site URL")}</Display>
+				<DataTag>CMD_SHPTSITENAME</DataTag>
+				<Icon><ToolTip>{Lang("Enter the name of the sharepoint site")}</ToolTip></Icon>
+			</Entry>
+			<Entry>
+				<Display>{Lang("Sharepoint Target Folder Path")}</Display>
+				<DataTag>CMD_SHPTFOLDER</DataTag>
+				<Icon><ToolTip>{Lang("Enter the name of the documents folder within the sharepoint site, relative path")}</ToolTip></Icon>
+			</Entry>
+			<Entry>
+				<Display>{Lang("Source Path")}</Display>
+				<DataTag>CMD_SOURCEPATH</DataTag>
+				<Icon><ToolTip>{Lang("Enter the folder Path of the source files, can be a shared folder or any location accessible by the sinequa server")}</ToolTip></Icon>
+			</Entry>
+			<Entry>
+				<Display>{Lang("Sharepoint UserName")}</Display>
+				<DataTag>CMD_SHPTUSERNAME</DataTag>
+				<Icon><ToolTip>{Lang("Email Username")}</ToolTip></Icon>
+			</Entry>
+			<Entry>
+				<Display>{Lang("Sharepoint Password")}</Display>
+				<DataTag>CMD_SHPTPASSWD</DataTag>
+				<Icon><ToolTip>{Lang("Email Password")}</ToolTip></Icon>
+			</Entry>
+
+		</Group>
+		
+	</Tab>
+</Sinequa>
