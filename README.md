@@ -1,4 +1,3 @@
-
 <img src="sinequa-logo-light-lg.png" width="300" style="margin: auto; display: block;">
 
 # Plugin Repository
@@ -9,7 +8,7 @@ You are welcome to contribute to this repository via [Pull Requests](https://hel
 
 Each plugin must fulfill the following requirements:
 
-- It must be packaged in its own subdirectory, along with its dependencies (forms, resource files, etc.), following if possible the standard structure of the Sinequa configuration folder. 
+- It must be packaged in its own subdirectory, along with its dependencies (forms, resource files, etc.), following if possible the standard structure of the Sinequa configuration folder.
 - It should also include a detailed README file explaining how to use it.
 - The code should be clean, readable and commented.
 - The code should be parameterized rather than hard-coded. When possible, use a **form-override** to make it is easy to use the plugin from the administration.
@@ -26,6 +25,7 @@ Unless otherwise mentioned in the directory of a specific plugin, all the plugin
 - [Engine Benchmark](#engine-benchmark)
 - [Export Index to CSV](#export-index-to-csv)
 - [Slack Connector](#slack-connector)
+- [Export To Sharepoint](#export-to-sharepoint)
 
 ### [PageRank Command](https://github.com/sinequa/plugins/tree/master/PageRank)
 
@@ -33,7 +33,7 @@ PageRank is an algorithm that aims to compute the importance of documents relati
 
 ### [Geo Search](https://github.com/sinequa/plugins/tree/master/GeoSearch)
 
-Sinequa can search within geolocated data by setting up an engine plugin, enabling powerful functionalities, like computing the intersection of complex geographical primitives. This plugin provides a set of Function plugins to generate geographical primitives *at indexing time* and a sample Query plugin that allows searching geolocated documents or records *at query time*.
+Sinequa can search within geolocated data by setting up an engine plugin, enabling powerful functionalities, like computing the intersection of complex geographical primitives. This plugin provides a set of Function plugins to generate geographical primitives _at indexing time_ and a sample Query plugin that allows searching geolocated documents or records _at query time_.
 
 ### [Engine Benchmark](https://github.com/sinequa/plugins/tree/master/EngineBenchmark)
 
@@ -46,3 +46,7 @@ ExportIndexToCSV is a command that aims to simplify data export from your indexe
 ### [Slack Connector](https://github.com/sinequa/plugins/tree/master/SlackConnector)
 
 SlackConnector is an implementation of a generic connector with a ConnectorPlugin. This example consumes a REST API for indexing [Slack](https://www.slack.com).
+
+### [Export To Sharepoint](https://github.com/sinequa/plugins/tree/master/ExportToSharepoint)
+
+ExportToSharepoint command helps to export large files (>300 MB) to sharepoint.

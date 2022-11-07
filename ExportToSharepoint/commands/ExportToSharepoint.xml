@@ -1,0 +1,27 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sinequa>
+	<Revision>2</Revision>
+	<Description>Export Files to Sharepoint</Description>
+	<CommandType>plugin</CommandType>
+	<Identity></Identity>
+	<Plugin>FTT_Export/Sinequa.Plugin.ExportToSharepoint</Plugin>
+	<System>
+		<LogLevel>20</LogLevel>
+		<LogInConsole>true</LogInConsole>
+	</System>
+	<Force32Bits>false</Force32Bits>
+	<StatusMaxOk></StatusMaxOk>
+	<RuntimeToRunWith></RuntimeToRunWith>
+	<Java>
+		<Server>true</Server>
+		<Xms></Xms>
+		<Xmx></Xmx>
+		<DisablePerfData>true</DisablePerfData>
+		<OtherOptions></OtherOptions>
+	</Java>
+	<CMD_SHPTSITENAME>%%SHPT_SITENAME%%</CMD_SHPTSITENAME>
+	<CMD_SHPTFOLDER>%SPHPT_FOLDER_LOC%</CMD_SHPTFOLDER>
+	<CMD_SOURCEPATH>%%SOURCE_PATH%%</CMD_SOURCEPATH>
+	<CMD_SHPTUSERNAME>%%sharepoint_online_email%%</CMD_SHPTUSERNAME>
+	<CMD_SHPTPASSWD>%%sharepoint_online_password%%</CMD_SHPTPASSWD>
+</Sinequa>
