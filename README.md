@@ -25,6 +25,7 @@ Unless otherwise mentioned in the directory of a specific plugin, all the plugin
 - [Engine Benchmark](#engine-benchmark)
 - [Export Index to CSV](#export-index-to-csv)
 - [Slack Connector](#slack-connector)
+- [Export To Sharepoint](#export-to-sharepoint)
 
 ### [PageRank Command](https://github.com/sinequa/plugins/tree/master/PageRank)
 
