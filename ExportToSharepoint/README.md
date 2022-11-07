@@ -22,13 +22,13 @@ This command uses two sharepoint CSOM libraries to connect to sharepoint. Make s
 
 ### Sharepoint Settings
 
-| Field                         | Type   | Comments                                                               |
-| ----------------------------- | ------ | ---------------------------------------------------------------------- |
-| Sharepoint Site URL           | String | Name of the sharepoint site                                            |
-| Sharepoint Target Folder Path | String | Name of the documents folder within the sharepoint site, relative path |
-| Source Path                   | String | Name of the documents folder within the sharepoint site, relative path |
-| Sharepoint UserName           | String | Sharepoint user email                                                  |
-| Sharepoint Password           | String | Sharepoint user password                                               |
+| Field                         | Type   | Comments                                                                                                 |
+| ----------------------------- | ------ | -------------------------------------------------------------------------------------------------------- |
+| Sharepoint Site URL           | String | Name of the sharepoint site                                                                              |
+| Sharepoint Target Folder Path | String | Name of the documents folder within the sharepoint site, relative path                                   |
+| Source Path                   | String | Folder Path of the source files, can be a shared folder or any location accessible by the sinequa server |
+| Sharepoint UserName           | String | Sharepoint user email                                                                                    |
+| Sharepoint Password           | String | Sharepoint user password                                                                                 |
 
 ## Install
 

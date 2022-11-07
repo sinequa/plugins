@@ -1,5 +1,5 @@
 ﻿///////////////////////////////////////////////////////////
-// Plugin FTT_Export : file ExportToSharepoint.cs
+// Plugin ExportToSharepoint : file ExportToSharepoint.cs
 //
 
 using System;
