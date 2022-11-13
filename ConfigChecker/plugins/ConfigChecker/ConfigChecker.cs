@@ -18,6 +18,7 @@ namespace Sinequa.Plugin
 {
 	public class ConfigChecker : CommandPlugin
 	{
+		/* Setting up the variables that will be used in the command. */
 		private string source_path = "";
 		private string logLevelCheck, indexerCheck, forceReindexCheck, securityCheck, customElementCheck, customElementName, customValue, indexerValue, securityValue,custom_ow_Value = "";
 		private string rmlogLevel, rmForceReindex, rmIndexer, rmSecurity,rmCustom = "";
@@ -28,8 +29,10 @@ namespace Sinequa.Plugin
 		private string securityNodeStr1 = "/Sinequa/domain";
 		private string securityNodeStr2 = "/Sinequa/Domain";
 
+
 		public override Return OnPreExecute()
 		{
+			/* Getting the values from the command form. */
 			source_path = Command.GetValue("CMD_SOURCEPATH");
 			logLevelCheck = Command.GetValue("CMD_LOGLEVEL");
 			indexerCheck = Command.GetValue("CMD_INDEXER");
@@ -69,7 +72,9 @@ namespace Sinequa.Plugin
 			return base.OnPreExecute();
 		}
 
+		
 		public override Return OnExecute()
+		
 		{
 			List<string> logLevelCheckList = new List<string>();
 			List<string> indexerCheckList = new List<string>();
@@ -114,6 +119,18 @@ namespace Sinequa.Plugin
 			return base.OnExecute();
 		}
 
+
+		/// <summary>
+		/// This function validates the node in the xml file
+		/// </summary>
+		/// <param name="isCheck">This is the value that you want to check for. If the value is found, then
+		/// the node will be added to the nodeList.</param>
+		/// <param name="nodeList">This is a list that is required for summary</param>
+		/// <param name="file">The file to be validated</param>
+		/// <param name="xpath">The xpath to the node you want to validate.</param>
+		/// <param name="doOverwrite">If true, the value of the node will be overwritten with the value of
+		/// overWriteValue.</param>
+		/// <param name="overWriteValue">This is the value that will be written to the node</param>
 		private void validateNode(string isCheck, List<string> nodeList, string file, string xpath, bool doOverwrite=false,string overWriteValue="")
 		{
 			try
@@ -143,6 +160,17 @@ namespace Sinequa.Plugin
 
 		}
 
+
+		/// <summary>
+		/// This function validates the node value of a given XML file
+		/// </summary>
+		/// <param name="isCheck">This is the type of check you want to perform.  The options are:</param>
+		/// <param name="nodeList">This is a list that is required for summary</param>
+		/// <param name="file">The file to be validated</param>
+		/// <param name="xpath">The xpath to the node you want to validate.</param>
+		/// <param name="checkValue">The value that you want to check for.</param>
+		/// <param name="doOverwrite">If the node exists, do you want to overwrite it?</param>
+		/// <param name="overWriteValue">This is the value that will be written to the node</param>
 		private void validateNode(string isCheck, List<string> nodeList, string file, string xpath,string checkValue,bool doOverwrite=false,string overWriteValue="")
 		{
 			try
@@ -177,6 +205,21 @@ namespace Sinequa.Plugin
 
 		}
 
+  
+		/// <summary>
+		/// This function validates the nodeList against the file, xpath1, xpath2, checkValue, doOverwrite,
+		/// and overWriteValue
+		/// </summary>
+		/// <param name="isCheck">This is the type of check you want to perform.  The options are:</param>
+		/// <param name="nodeList">This is a list that is required for summary</param>
+		/// <param name="file">The file to be validated</param>
+		/// <param name="xpath1">The xpath to the node you want to check.</param>
+		/// <param name="xpath2">This is the xpath to the node that you want to validate.</param>
+		/// <param name="checkValue">The value to check for. If the value is not found, the node will be
+		/// added.</param>
+		/// <param name="doOverwrite">If true, the value of the node will be overwritten with the value of
+		/// overWriteValue.</param>
+		/// <param name="overWriteValue">This is the value that will be written to the node </param>
 		private void validateNode(string isCheck, List<string> nodeList, string file, string xpath1, string xpath2, string checkValue=null,bool doOverwrite=false,string overWriteValue="")
 		{
 			try
@@ -231,6 +274,15 @@ namespace Sinequa.Plugin
 			return xmlDoc;
 		}
 
+  
+		/// <summary>
+		/// Displays the final summary
+		/// </summary>
+		/// <param name="isCheck">This is a string that is either "true" or "false". If it's "true", then the
+		/// summary will be displayed. </param>
+		/// <param name="summaryList">The dictionary that contains the summary information.</param>
+		/// <param name="key">The key to the dictionary.</param>
+		/// <param name="displayTitle">The title of the summary section.</param>
 		private void displaySummary(string isCheck,Dictionary<string,List<string>> summaryList,string key, string displayTitle)
 		{
 			try
