@@ -1,0 +1,105 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sinequa>
+	<Inherit>command</Inherit>
+	<Tab merge-type="merge" merge-id="general">
+		<Group merge-type="add" id="source_settings">
+			<Display>{Lang("General Details")}</Display>
+			<Entry>
+				<Display>{Lang("Config source path")}</Display>
+				<DataTag>CMD_SOURCEPATH</DataTag>
+				<Icon><ToolTip>{Lang("Enter the path of the configuration files to be checked. Make sure to choose a path only with select config files")}</ToolTip></Icon>
+			</Entry>
+		</Group>	
+		<Group merge-type="add" id="checks">
+			<Display>{Lang("Configuration Checks")}</Display>
+        	<CheckBox>
+                <Display>{Lang("Log level")}</Display>
+				<DataTag>CMD_LOGLEVEL</DataTag>
+				<DefaultValue>false</DefaultValue>
+                <Icon><ToolTip>{Lang("Check whether log level exists.")}</ToolTip></Icon>
+        	</CheckBox>
+			<CheckBox>
+                <Display>{Lang("Force re-indexing")}</Display>
+				<DataTag>CMD_FORCEREINDEX</DataTag>
+				<DefaultValue>false</DefaultValue>
+                <Icon><ToolTip>{Lang("Check whether force reindexation is active.")}</ToolTip></Icon>
+        	</CheckBox>
+			<CheckBox>
+                <Display>{Lang("Indexer")}</Display>
+				<DataTag>CMD_INDEXER</DataTag>
+				<DefaultValue>false</DefaultValue>
+                <Icon><ToolTip>{Lang("Check whether indexer value is an alias.")}</ToolTip></Icon>
+        	</CheckBox>
+			<CheckBox>
+                <Display>{Lang("Security")}</Display>
+				<DataTag>CMD_SECURITY</DataTag>
+				<DefaultValue>false</DefaultValue>
+                <Icon><ToolTip>{Lang("Check whether collections have security level. ")}</ToolTip></Icon>
+        	</CheckBox>
+			<CheckBox>
+                <Display>{Lang("Custom Element")}</Display>
+				<DataTag>CMD_CUSTOM</DataTag>
+				<DefaultValue>false</DefaultValue>
+                <Icon><ToolTip>{Lang("Check for custom element within XML. ")}</ToolTip></Icon>
+        	</CheckBox>
+			<Entry>
+				<Display>{Lang("Custom Element Name")}</Display>
+				<DataTag>CMD_CUSTOMELEMENT</DataTag>
+				<Icon><ToolTip>{Lang("Enter the custom element name from the XML. ")}</ToolTip></Icon>
+			</Entry>
+			<Entry>
+				<Display>{Lang("Custom Value")}</Display>
+				<DataTag>CMD_CUSTOMELEMENTVALUE</DataTag>
+				<Icon><ToolTip>{Lang("Enter the custom element value to be compared. ")}</ToolTip></Icon>
+			</Entry>
+        </Group>
+		<Group merge-type="add" id="checks">
+			<Display>{Lang("Overwrite Values")}</Display>
+			<CheckBox>
+                <Display>{Lang("Log level")}</Display>
+				<DataTag>CMD_RMLOGLEVEL</DataTag>
+				<DefaultValue>false</DefaultValue>
+                <Icon><ToolTip>{Lang("Overwrites the log level to default")}</ToolTip></Icon>
+        	</CheckBox>
+			<CheckBox>
+                <Display>{Lang("Force re-indexing")}</Display>
+				<DataTag>CMD_RMFORCEREINDEX</DataTag>
+				<DefaultValue>false</DefaultValue>
+                <Icon><ToolTip>{Lang("Overwrites force re-indexing to false")}</ToolTip></Icon>
+        	</CheckBox>
+			<CheckBox>
+                <Display>{Lang("Indexer")}</Display>
+				<DataTag>CMD_RMINDEXER</DataTag>
+				<DefaultValue>false</DefaultValue>
+                <Icon><ToolTip>{Lang("Overwrites indexer value to the required value from the textbox.")}</ToolTip></Icon>
+        	</CheckBox>
+			<Entry>
+				<Display>{Lang("Indexer Value")}</Display>
+				<DataTag>CMD_INDEXERVALUE</DataTag>
+				<Icon><ToolTip>{Lang("Required indexer value. Valid only if Indexer overwrite is set to true. Example @@AllIndexers or @IndexerA.")}</ToolTip></Icon>
+			</Entry>
+			<CheckBox>
+                <Display>{Lang("Security")}</Display>
+				<DataTag>CMD_RMSECURITY</DataTag>
+				<DefaultValue>false</DefaultValue>
+                <Icon><ToolTip>{Lang("Overwrites security value to the required value from the textbox")}</ToolTip></Icon>
+        	</CheckBox>
+			<Entry>
+				<Display>{Lang("Security Value")}</Display>
+				<DataTag>CMD_SECURITYVALUE</DataTag>
+				<Icon><ToolTip>{Lang("Required domain security Value. Valid only if security overwrite is set to true.")}</ToolTip></Icon>
+			</Entry>
+			<CheckBox>
+                <Display>{Lang("Custom Element")}</Display>
+				<DataTag>CMD_RMCUSTOM</DataTag>
+				<DefaultValue>false</DefaultValue>
+                <Icon><ToolTip>{Lang("Overwrites custom value to the required value from the textbox")}</ToolTip></Icon>
+        	</CheckBox>
+			<Entry>
+				<Display>{Lang("Custom Element Value")}</Display>
+				<DataTag>CMD_CUSTOMVALUE</DataTag>
+				<Icon><ToolTip>{Lang("Required custom element value. Valid only if custom element overwrite is set to true.")}</ToolTip></Icon>
+			</Entry>
+		</Group>
+	</Tab>
+</Sinequa>
