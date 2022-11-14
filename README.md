@@ -26,6 +26,7 @@ Unless otherwise mentioned in the directory of a specific plugin, all the plugin
 - [Export Index to CSV](#export-index-to-csv)
 - [Slack Connector](#slack-connector)
 - [Export To Sharepoint](#export-to-sharepoint)
+- [ConfigChecker](#configchecker)
 
 ### [PageRank Command](https://github.com/sinequa/plugins/tree/master/PageRank)
 
@@ -50,3 +51,8 @@ SlackConnector is an implementation of a generic connector with a ConnectorPlugi
 ### [Export To Sharepoint](https://github.com/sinequa/plugins/tree/master/ExportToSharepoint)
 
 ExportToSharepoint command helps to export large files (>300 MB) to sharepoint.
+
+### [ConfigChecker](https://github.com/sinequa/plugins/tree/master/ConfigChecker)
+
+Many times configuration files need to be pushed from development environment to higher environments(like staging or production).
+There are some good practices to be followed for configuration files when pushed to production, like force re-indexation should be set to false, loglevel should be set to default, indexer should be set to alias etc. ConfigChecker command helps to check sinequa configuration files to validate these element values.
