@@ -45,7 +45,7 @@
 			<Entry>
 				<Display>{Lang("Custom Element Name")}</Display>
 				<DataTag>CMD_CUSTOMELEMENT</DataTag>
-				<Icon><ToolTip>{Lang("Enter the custom element name from the XML. ")}</ToolTip></Icon>
+				<Icon><ToolTip>{Lang("Name of the custom element name from the XML. This is the xpath name from the required XML file.")}</ToolTip></Icon>
 			</Entry>
 			<Entry>
 				<Display>{Lang("Custom Value")}</Display>
@@ -87,7 +87,7 @@
 			<Entry>
 				<Display>{Lang("Security Value")}</Display>
 				<DataTag>CMD_SECURITYVALUE</DataTag>
-				<Icon><ToolTip>{Lang("Required domain security Value. Valid only if security overwrite is set to true.")}</ToolTip></Icon>
+				<Icon><ToolTip>{Lang("Required domain security value to be overwritten. Valid only if security overwrite is set to true.")}</ToolTip></Icon>
 			</Entry>
 			<CheckBox>
                 <Display>{Lang("Custom Element")}</Display>
@@ -98,7 +98,7 @@
 			<Entry>
 				<Display>{Lang("Custom Element Value")}</Display>
 				<DataTag>CMD_CUSTOMVALUE</DataTag>
-				<Icon><ToolTip>{Lang("Required custom element value. Valid only if custom element overwrite is set to true.")}</ToolTip></Icon>
+				<Icon><ToolTip>{Lang("Required custom element value to be overwritten. Valid only if custom element overwrite is set to true.")}</ToolTip></Icon>
 			</Entry>
 		</Group>
 	</Tab>
