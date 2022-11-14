@@ -7,7 +7,7 @@ ConfigChecker command helps to check sinequa configuration files to validate the
 
 ## Settings
 
-![Form](doc/images/configCheckForm.PNG "Form")
+![Form](doc/images/configCheckForm.png "Form")
 
 ### Command Settings
 
@@ -20,13 +20,13 @@ ConfigChecker command helps to check sinequa configuration files to validate the
 
 ## Settings
 
-![Form](doc/images/configCheckForm.PNG "Form")
+![Form](doc/images/configCheckForm.png "Form")
 
 ### Command Settings
 
-| Group                | Field                | Type    | Comments                                                                                                                      |
+| Group                | Field                | Type    | Comments                                                                                                                      |     |
 | -------------------- | -------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------- | --- |
-| General settings     | Config source path   | String  | Path of the configuration files to be checked. Make sure to choose a path only with select config files                       |     |
+| General settings     | Config source path   | String  | Path of the configuration files to be checked. Make sure to choose a path only with select config files                       |
 | Configuration Checks | Log Level            | Boolean | Checks whether log level exists.                                                                                              |
 | Configuration Checks | Force re-indexing    | Boolean | Check whether force reindexation is active.                                                                                   |
 | Configuration Checks | Indexer              | Boolean | Check whether indexer value is an alias.                                                                                      |
@@ -42,19 +42,6 @@ ConfigChecker command helps to check sinequa configuration files to validate the
 | Overwrite Values     | Security Value       | String  | Required domain security Value. Valid only if security overwrite is set to true.                                              |
 | Overwrite Values     | Custom Element       | Boolean | Overwrites custom value to the required value from the textbox.                                                               |
 | Overwrite Values     | Custom Element Value | String  | Required custom element value. Valid only if custom element overwrite is set to true.                                         |
-
-## Install
-
-Deploy the form override, command and the plugin file in your config:
-
-- form-overrides/command.ConfigChecker.xml
-- plugins/ConfigChecker/ConfigChecker.cs
-- plugins/ConfigChecker/plugin.xml
-- commands/ConfigChecker.xml
-
-## NOTE:
-
-The command already has some values added in the command configuration for reference. Please make sure to change the values as per your requirement.
 
 ## Install
 
