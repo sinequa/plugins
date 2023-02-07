@@ -7,6 +7,7 @@ Base64 is a simple plugin providing two new Value Patterns (functions):
 ## Encode
 `Base64Encode('Hello, World!')` will return **SGVsbG8sIFdvcmxkIQ==**.
 
-## Decode
-`Base64Decode(`SGVsbG8sIFdvcmxkIQ==`) will return **Hello, World!**.
+![ExpressionTesterBase64](doc/images/ExpressionTesterBase64.png)
 
+## Decode
+`Base64Decode('SGVsbG8sIFdvcmxkIQ==')` will return **Hello, World!**.
