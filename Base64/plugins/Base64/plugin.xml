@@ -1,0 +1,19 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sinequa>
+	<Revision>1</Revision>
+	<Description>Function plugin for Base64 encoding and decoding.</Description>
+	<ProgrammingLanguage>cs</ProgrammingLanguage>
+	<Platform>any</Platform>
+	<Files>
+		<e>
+			<Name>Base64Decode.cs</Name>
+			<Comment>Decode a Base64 string to a plain string.</Comment>
+		</e>
+		<e>
+			<Name>Base64Encode.cs</Name>
+			<Comment>Encode a plain string to a Base64 string.</Comment>
+		</e>
+	</Files>
+	<IsDebug>true</IsDebug>
+	<ExternalDllPath></ExternalDllPath>
+</Sinequa>
