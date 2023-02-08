@@ -1,0 +1,39 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Sinequa>
+	<Revision>2</Revision>
+	<Description>Check sinequa configurations for good practices</Description>
+	<CommandType>plugin</CommandType>
+	<Identity></Identity>
+	<Plugin>ConfigChecker/Sinequa.Plugin.ConfigChecker</Plugin>
+	<System>
+		<LogLevel></LogLevel>
+		<LogInConsole>true</LogInConsole>
+	</System>
+	<Force32Bits>false</Force32Bits>
+	<StatusMaxOk></StatusMaxOk>
+	<RuntimeToRunWith></RuntimeToRunWith>
+	<Java>
+		<Server>true</Server>
+		<Xms></Xms>
+		<Xmx></Xmx>
+		<DisablePerfData>true</DisablePerfData>
+		<OtherOptions></OtherOptions>
+	</Java>
+	<CMD_SOURCEPATH>E:\configtest\</CMD_SOURCEPATH>
+	<CMD_LOGLEVEL>true</CMD_LOGLEVEL>
+	<CMD_INDEXER>true</CMD_INDEXER>
+	<CMD_FORCEREINDEX>true</CMD_FORCEREINDEX>
+	<CMD_SECURITY>false</CMD_SECURITY>
+	<CMD_RMLOGLEVEL>false</CMD_RMLOGLEVEL>
+	<CMD_RMFORCEREINDEX>false</CMD_RMFORCEREINDEX>
+	<CMD_EXPORTPATH></CMD_EXPORTPATH>
+	<CMD_RMINDEXER>false</CMD_RMINDEXER>
+	<CMD_INDEXERVALUE>@indexerA</CMD_INDEXERVALUE>
+	<CMD_RMSECURITY>false</CMD_RMSECURITY>
+	<CMD_SECURITYVALUE>Sinequa</CMD_SECURITYVALUE>
+	<CMD_CUSTOM>true</CMD_CUSTOM>
+	<CMD_CUSTOMELEMENT>/Sinequa/IndexPdfAttachments</CMD_CUSTOMELEMENT>
+	<CMD_CUSTOMELEMENTVALUE>false</CMD_CUSTOMELEMENTVALUE>
+	<CMD_RMCUSTOM>true</CMD_RMCUSTOM>
+	<CMD_CUSTOMVALUE>true</CMD_CUSTOMVALUE>
+</Sinequa>

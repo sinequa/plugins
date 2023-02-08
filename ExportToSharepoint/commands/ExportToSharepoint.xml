@@ -4,7 +4,7 @@
 	<Description>Export Files to Sharepoint</Description>
 	<CommandType>plugin</CommandType>
 	<Identity></Identity>
-	<Plugin>FTT_Export/Sinequa.Plugin.ExportToSharepoint</Plugin>
+	<Plugin>ExportToSharepoint/Sinequa.Plugin.ExportToSharepoint</Plugin>
 	<System>
 		<LogLevel>20</LogLevel>
 		<LogInConsole>true</LogInConsole>
