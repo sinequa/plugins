@@ -380,7 +380,7 @@ namespace Sinequa.Plugin
                         if (response2 != null)
                         {
                             //add memmbers of this group
-                            p.Member = response.Get("users")?.ToListStr();
+                            p.Member = response2.Get("users")?.ToListStr();
                         }
 
                         Sys.Log2(10, "group: ", p.Name);
@@ -394,48 +394,94 @@ namespace Sinequa.Plugin
                 }
             }
 
-            //index channels, see as groups
-            response = slackGet("conversations.list") as JsonObject;
-            if (response == null || (response != null && !response.ValueBoo("ok"))) { Sys.LogError(Json.Serialize(response)); return false; }
-            if (response != null)
+            bool moreChannels = false;
+            bool moreMembers = false;
+            string channelCursor = "";
+            string memberCursor = "";
+
+            do
             {
-                JsonArray members = response.GetAsArray("channels");
-                if (members != null)
+                //index channels, see as groups
+                response = slackGet("conversations.list" + "?cursor=" + channelCursor) as JsonObject;
+                if (response == null || (response != null && !response.ValueBoo("ok"))) { Sys.LogError(Json.Serialize(response)); return false; }
+                if (response != null)
                 {
-                    for (int i = 0; i < members.EltCount(); i++)
+                    JsonArray members = response.GetAsArray("channels");
+                    if (members != null)
                     {
-                        //clear and reuse the principal instance 
-                        p.Clear();
-
-                        JsonDocProperties channel = new JsonDocProperties(members.Elt(i));
-
-                        //is a group
-                        p.IsGroup = true;
-
-                        //principal fields
-                        p.Id = channel.GetValue("id");
-                        p.Name = channel.GetValue("name");
-
-                        //Get more details for having members (otherwise the list is truncated)
-                        JsonObject responseInfo = slackGet("conversations.info?channel=" + p.Id) as JsonObject;
-                        if (responseInfo == null || (responseInfo != null && !responseInfo.ValueBoo("ok"))) { Sys.LogError(Json.Serialize(responseInfo)); return false; }
-                        if (responseInfo != null)
+                        for (int i = 0; i < members.EltCount(); i++)
                         {
-                            JsonObject channelinfo = responseInfo.GetAsObject("channel");
-                            //add memmbers of this group
-                            p.Member = channelinfo.Get("members")?.ToListStr();
+                            //clear and reuse the principal instance 
+                            p.Clear();
+
+                            JsonDocProperties channel = new JsonDocProperties(members.Elt(i));
+
+                            //is a group
+                            p.IsGroup = true;
+
+                            //principal fields
+                            p.Id = channel.GetValue("id");
+                            p.Name = channel.GetValue("name");
+
+                            ListStr membersList = new ListStr();
+
+                            do
+                            {
+                                // Get channel members
+                                JsonObject responseMembers = slackGet("conversations.members?channel=" + p.Id + "&cursor=" + memberCursor) as JsonObject;
+                                if (responseMembers == null || (responseMembers != null && !responseMembers.ValueBoo("ok"))) { Sys.LogError(Json.Serialize(responseMembers)); return false; }
+                                if (responseMembers != null)
+                                {
+                                    // Add members to members list
+                                    membersList.Add(responseMembers.Get("members")?.ToListStr());
+
+                                    // Cursor-based pagination through members
+                                    JsonObject responseMetadataMembers = responseMembers.GetAsObject("response_metadata");
+                                    memberCursor = responseMetadataMembers.Get("next_cursor")?.ToStr();
+
+                                    if (!String.IsNullOrEmpty(memberCursor) && !string.IsNullOrWhiteSpace(memberCursor))
+                                    {
+                                        Sys.Log("Next cursor : " + memberCursor);
+                                        moreMembers = true;
+                                    }
+                                    else
+                                    {
+                                        moreMembers = false;
+                                    }
+                                }
+                            }
+                            while (moreMembers);
+
+                            // Add members to ConnectorPrincipal
+                            p.Member = membersList;
+
+                            Sys.Log2(10, "group (channel): ", p.Name);
+                            channel.LogProperties();
+                            //do partition mappings
+                            Connector.PartitionMappings?.Apply(Ctxt, p, channel);
+
+                            //add principal in the partition
+                            Connector.Partition.Write(p);
                         }
-
-                        Sys.Log2(10, "group (channel): ", p.Name);
-                        channel.LogProperties();
-                        //do partition mappings
-                        Connector.PartitionMappings?.Apply(Ctxt, p, channel);
-
-                        //add principal in the partition
-                        Connector.Partition.Write(p);
                     }
+
+                    // Cursor-based pagination through channels
+                    JsonObject responseMetadataConversations = response.GetAsObject("response_metadata");
+                    channelCursor = responseMetadataConversations.Get("next_cursor")?.ToStr();
+
+                    if (!String.IsNullOrEmpty(channelCursor) && !string.IsNullOrWhiteSpace(channelCursor))
+                    {
+                        Sys.Log("Next cursor : " + channelCursor);
+                        moreChannels = true;
+                    }
+                    else
+                    {
+                        moreChannels = false;
+                    }
+
                 }
             }
+            while (moreChannels);
 
             return true;
         }
