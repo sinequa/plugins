@@ -20,9 +20,10 @@ namespace Sinequa.Plugin
 
 	public class EngineBenchmark : CommandPlugin
 	{
-		const string EngineBenchmarkVersion = "0.9.8 (beta)";
+		const string EngineBenchmarkVersion = "1.0.0 (beta)";
+		const string ForceCulture = "en-US";
 
-		private EngineActivityManager _engineActivityManager;
+        private EngineActivityManager _engineActivityManager;
 		private CmdConfigEngineBenchmark _conf;
 		//update status every X iterations of a thread group	
 		private int _updateStatusFrequency = 50;
@@ -32,7 +33,7 @@ namespace Sinequa.Plugin
 		//Date set a end of benchmark (after all thread group have been executed, before stats computation)
 		private DateTime _tEnd;
 		//Engine/Indexes status (after config is loaded, before thread group starts)
-		public List<EngineCustomStatus> lECSStart { get; private set; }
+		public List<EngineCustomStatus> lECSStats { get; private set; }
 		//Engine/Indexes status (after all thread group have been executed, before stats computation)
 		public List<EngineCustomStatus> lECSEnd { get; private set; }
 
@@ -43,15 +44,14 @@ namespace Sinequa.Plugin
 
 		public EngineBenchmark()
 		{
-			Sys.Log($"----------------------------------------------------");
+            Thread.CurrentThread.CurrentCulture = new CultureInfo(ForceCulture);
+            Sys.Log($"----------------------------------------------------");
 			Sys.Log($"EngineBenchmark Version [{EngineBenchmarkVersion}]");
 			Sys.Log($"----------------------------------------------------");
 		}
 
 		public override Return OnPreExecute()
 		{
-			
-
             UpdateStatus(StatusType.LoadConfig);
 			//load and check configuration (form override)
 			_conf = new CmdConfigEngineBenchmark(this);
@@ -70,13 +70,13 @@ namespace Sinequa.Plugin
 			
 			//load engines status for all Engines in the Sinequa Grid. In case of brokering, other Engines than the ones defined in the "engine" list can be used
 			UpdateStatus(StatusType.EngineStatus);
-			lECSStart = EngineStatusHelper.GetEnginesStatus(CC.Current.Engines.ToList());
-			if (lECSStart == null)
+			lECSStats = EngineStatusHelper.GetEnginesStatus(CC.Current.Engines.ToList());
+			if (lECSStats == null)
 			{
 				Sys.LogError($"All Engines must be up and running in order to execute benchmark");
 				return Return.Error;
 			}
-			else EngineStatusHelper.LogEnginesStatus(lECSStart);
+			else EngineStatusHelper.LogEnginesStatus(lECSStats);
 
 			//load config (principals) if a thread group recquire user ACLs
 			if (_conf.threadGroups.Any(x => x.Value.addUserACLs))
@@ -140,7 +140,7 @@ namespace Sinequa.Plugin
 				Parallel.ForEach(Infinite(tGroup), new ParallelOptions { MaxDegreeOfParallelism = tGroup.threadNumber }, (ignore, threadGroupLoopState) =>
 				{
                     Thread threadGroupThread = Thread.CurrentThread;
-                    Thread.CurrentThread.CurrentCulture = new CultureInfo("en-US");
+					Thread.CurrentThread.CurrentCulture = new CultureInfo(ForceCulture);
                     int threadGroupThreadId = threadGroupThread.ManagedThreadId;
 
 					//increment number iterations
@@ -326,7 +326,7 @@ namespace Sinequa.Plugin
 			Sys.Log($"----------------------------------------------------");
 
 			//check indexes changes (deletes)
-			long nbDocsAddedDeleted = EngineStatusHelper.LogIndexesChanges(lECSStart, lECSEnd);
+			long nbDocsAddedDeleted = EngineStatusHelper.LogIndexesChanges(lECSStats, lECSEnd);
 			if (nbDocsAddedDeleted == -1) return Return.Error;
 			Sys.Log($"----------------------------------------------------");
 			Sys.Log($"Total number of document added/deleted (indexes document count) [{nbDocsAddedDeleted}]");
@@ -566,7 +566,8 @@ namespace Sinequa.Plugin
 			dataTag = "CMD_MAIN_SIMULATE";
 			if (!DatatagExist(dataTag)) return false;
 			simulate = _XMLConf.ValueBoo(dataTag, false);
-            if (simulate) Sys.LogSetLevel(20);
+
+            if (simulate && Sys.LogGetLevel() < 20) Sys.LogSetLevel(20);
 			#endregion
 
 			#region engines

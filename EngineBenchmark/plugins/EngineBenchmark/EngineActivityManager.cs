@@ -3,8 +3,10 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
@@ -97,13 +99,11 @@ namespace Sinequa.Plugin
 
 		private async Task PeriodicEngineActivity(string engineName, int millisecondsDelay, CancellationToken cancellationToken)
 		{
-			while (true)
+            while (true)
 			{
 				string activityXML = Toolbox.GetEngineActivity(engineName);
-				if (activityXML != null)
-				{
-					StoreActivity(engineName, activityXML);
-				}
+				if (activityXML != null) StoreActivity(engineName, activityXML);
+				else Sys.LogError($"Fail to get Engine activity on Engine [{engineName}]");
 				await Task.Delay(millisecondsDelay, cancellationToken);
 			}
 		}
@@ -111,7 +111,11 @@ namespace Sinequa.Plugin
 		public bool StoreActivity(string engineName, string activityXML)
 		{
 			EngineActivityItem item = new EngineActivityItem(engineName);
-			if (!item.Parse(activityXML)) return false;
+			if (!item.Parse(activityXML))
+			{
+				Sys.LogError($"Fail to parse Engine activity on Engine [{engineName}] [{activityXML}]");
+				return false;
+			}
 
 			List<EngineActivityItem> l = _dItemStore.AddOrUpdate(engineName, new List<EngineActivityItem> { item }, (k, v) => { v.Add(item); return v; });
 
@@ -158,6 +162,8 @@ namespace Sinequa.Plugin
 			LogTable logTableActivity = new LogTable();
 			logTableActivity.SetInnerColumnSpaces(1, 1);
 
+			Sys.Log(200, $"Compute Engine Activity Statistics for Engine [{string.Join(",", lStoreEngine)}]");
+
 			foreach (string engineName in lStoreEngine)
 			{
 				//engine X does not exist
@@ -167,8 +173,9 @@ namespace Sinequa.Plugin
 					Sys.LogError($"Cannot get engine activity item for Engine [{engineName}]");
 					continue;
 				}
+                Sys.Log(200, $"Compute Engine Activity Statistics for Engine [{engineName}] items [{lItems.Count}]");
 
-				EngineActivityItem first = lItems.OrderBy(x => x.processNow).First();
+                EngineActivityItem first = lItems.OrderBy(x => x.processNow).First();
 				EngineActivityItem last = lItems.OrderBy(x => x.processNow).Last();
 				
 				//activity monitored count

@@ -154,13 +154,16 @@
 				<ListName>listsecurityinput</ListName>
 				<Icon><ToolTip>{Lang("Select input for the users. Can be read from the Table below or from the user file")}</ToolTip></Icon>
 				<DefaultValue>Table</DefaultValue>
-			</Combo>
-			<Combo>
+			</Combo>			
+			<Entity>
 				<Display>{Lang("Users parameter file")}</Display>
 				<DataTag>CMD_USERS_PARAMETER_FILE</DataTag>
 				<ListName>listcustomfile</ListName>
+				<Form>file.custom</Form>
+				<DataType>file.custom/customfile</DataType>
 				<Icon><ToolTip>{Lang("Custom file containing list of User ID/Name. Each line will represent a set of User ID or User Name")}</ToolTip></Icon>
-			</Combo>
+				<VisibleMode>{IfEquals(data.CMD_SECURITY_INPUT,'File','All','None')}</VisibleMode>
+			</Entity>
 			<Grid>
 				<DataTag>CMD_USERS_GRID</DataTag>
 				<Col>
@@ -190,6 +193,7 @@
 					<CellType>rowdelete</CellType>
 					<CellValue>rowdelete</CellValue>
 				</Col>
+				<VisibleMode>{IfEquals(data.CMD_SECURITY_INPUT,'Table','All','None')}</VisibleMode>
 			</Grid>
 		</Group>
 	</Tab>

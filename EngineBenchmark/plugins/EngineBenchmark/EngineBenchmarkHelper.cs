@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Globalization;
 using System.Xml.Linq;
+using Tensorflow.Tfprof.Pprof;
 
 namespace Sinequa.Plugin
 {
@@ -145,7 +146,8 @@ namespace Sinequa.Plugin
 			else
 			{
 				Sys.LogError($"Cannot authenticate user, principal ID [{principal.Id}] principal Name [{principal.Name}] from domain [{domainName}]");
-				return false;
+                SSession.Dispose();
+                return false;
 			}
 			SSession.Dispose();
 
@@ -206,7 +208,7 @@ namespace Sinequa.Plugin
             foreach (CCEngine ccEngine in CC.Current.Engines)
             {
 				string path = Str.PathAdd(outputFolderPath, "Configuration", "Engines", $"{ccEngine.Name}.xml");
-				if (!ccEngine.Save(path))
+				if (!DumpFile(path, ccEngine.GetXDoc().OuterXml))
 				{
 					Sys.LogError($"Cannot dump Engine [{ccEngine.Name}] configuration to [{path}]");
 					return false;
@@ -221,7 +223,7 @@ namespace Sinequa.Plugin
 			foreach (CCIndex ccIndex in CC.Current.Indexes)
 			{
 				string path = Str.PathAdd(outputFolderPath, "Configuration", "Indexes", $"{ccIndex.Name}.xml");
-				if (!ccIndex.Save(path))
+				if (!DumpFile(path, ccIndex.GetXDoc().OuterXml))
 				{
 					Sys.LogError($"Cannot dump Index [{ccIndex.Name}] configuration to [{path}]");
 					return false;
@@ -483,8 +485,7 @@ namespace Sinequa.Plugin
 			foreach (EngineCustomStatus ECS in lEngineCustomStatus) LogIndexesStatus(ECS);
 			LogEnginesGrid(lEngineCustomStatus);
 			Sys.Log($"----------------------------------------------------");
-		}
-
+        }
 
 		private static void LogEnginesGrid(List<EngineCustomStatus> lEngineCustomStatus)
 		{
